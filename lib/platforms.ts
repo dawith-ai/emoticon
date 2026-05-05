@@ -1,5 +1,38 @@
+export type PlatformCategory =
+  | "messenger" // 카카오/라인/OGQ — 메신저 이모티콘
+  | "stock" // 미리캔버스/툴디/크라우드픽/Adobe/Shutterstock — 스톡 리소스
+  | "pod" // 텐바이텐/마플샵/Redbubble — Print On Demand 굿즈
+  | "digital"; // Etsy/Gumroad/포스타입/위버딩/하플/크티/그로블 — 디지털 크리에이터
+
+export const CATEGORY_META: Record<
+  PlatformCategory,
+  { label: string; emoji: string; description: string }
+> = {
+  messenger: {
+    label: "메신저 이모티콘",
+    emoji: "💬",
+    description: "카카오·라인·OGQ — 가장 큰 시장, 진입 어려움",
+  },
+  stock: {
+    label: "요소·스톡 마켓",
+    emoji: "🎨",
+    description: "PNG/벡터/템플릿 단위 판매. 비독점, 진입 쉬움",
+  },
+  pod: {
+    label: "POD 굿즈",
+    emoji: "🛍️",
+    description: "Print On Demand — 디자인만 올리면 굿즈 자동 제작·배송",
+  },
+  digital: {
+    label: "디지털 크리에이터",
+    emoji: "💼",
+    description: "스티커팩·강의·전자책 등 디지털 상품 직접 판매",
+  },
+};
+
 export type Platform = {
   id: string;
+  category: PlatformCategory;
   name: string;
   emoji: string;
   mainSize: string;
@@ -12,11 +45,19 @@ export type Platform = {
   submitUrl: string;
   steps: string[];
   notes: string;
+  /** 글로벌 시장인지 (영문 SEO 필요) */
+  global?: boolean;
+  /** 비독점 가능 여부 */
+  nonExclusive?: boolean;
 };
 
 export const PLATFORMS: Platform[] = [
+  // ─────────────────────────────────────────────────────────
+  // 메신저 이모티콘 (Messenger)
+  // ─────────────────────────────────────────────────────────
   {
     id: "kakao-static",
+    category: "messenger",
     name: "카카오 이모티콘 (멈춤)",
     emoji: "💛",
     mainSize: "360x360",
@@ -31,14 +72,15 @@ export const PLATFORMS: Platform[] = [
       "VibeMoji에서 32장 카카오용 ZIP 다운로드",
       "카카오 이모티콘 스튜디오 가입 / 로그인",
       "[제안하기] → [멈춰있는 이모티콘] 선택",
-      "ZIP 파일 일괄 업로드 (개편된 신규 기능)",
+      "ZIP 파일 일괄 업로드",
       "제목·설명·시리즈 입력 후 제출",
       "심사 결과 메일 대기 (2-3주)",
     ],
-    notes: "미승인이어도 재제안 가능. 통과율 5% 미만이라 인내심 필수.",
+    notes: "통과율 5% 미만이라 인내심 필수. 다른 플랫폼 병행 권장.",
   },
   {
     id: "kakao-animated",
+    category: "messenger",
     name: "카카오 이모티콘 (움직임)",
     emoji: "✨",
     mainSize: "360x360",
@@ -56,10 +98,11 @@ export const PLATFORMS: Platform[] = [
       "ZIP 업로드 후 시리즈 정보 입력",
       "심사 대기",
     ],
-    notes: "정지 이모티콘보다 단가 높음. 첫 도전은 멈춤부터 권장.",
+    notes: "정지보다 단가 높음. 첫 도전은 멈춤부터 권장.",
   },
   {
     id: "ogq",
+    category: "messenger",
     name: "OGQ 마켓 (네이버)",
     emoji: "🟢",
     mainSize: "740x640",
@@ -78,9 +121,11 @@ export const PLATFORMS: Platform[] = [
       "심사 대기",
     ],
     notes: "카카오보다 통과율 높음. 첫 작가 도전 추천 플랫폼.",
+    nonExclusive: true,
   },
   {
     id: "line",
+    category: "messenger",
     name: "LINE 크리에이터스",
     emoji: "💚",
     mainSize: "370x320 (max)",
@@ -98,39 +143,253 @@ export const PLATFORMS: Platform[] = [
       "가격 설정 (¥120-610)",
       "심사 후 출시",
     ],
-    notes: "글로벌 시장 진출 가능. 일본/대만 사용자 활발.",
+    notes: "글로벌(일본/대만) 시장 진출 가능. 영문 SEO 효과.",
+    global: true,
+    nonExclusive: true,
   },
+
+  // ─────────────────────────────────────────────────────────
+  // 요소·스톡 마켓 (Stock / Resource)
+  // ─────────────────────────────────────────────────────────
   {
     id: "miricanvas",
+    category: "stock",
     name: "미리캔버스 기여자",
-    emoji: "🎨",
+    emoji: "🖼️",
     mainSize: "자유 (벡터/비트맵)",
     count: "자유",
     format: "PNG/SVG",
-    commission: "비독점 (별도 협의)",
+    commission: "비독점 (협의)",
     reviewDays: "검토 후",
     difficulty: "쉬움",
-    expectedRevenue: "사용량 비례 (장기)",
+    expectedRevenue: "사용량 비례 (장기 패시브)",
     submitUrl: "https://www.miricanvas.com/page/contributor/",
     steps: [
       "디자인허브 가입 (포트폴리오 불필요)",
       "VibeMoji에서 PNG 다운로드",
       "디자인허브에 콘텐츠 + 메타데이터 업로드",
-      "비독점 제공 (저작권은 본인 보유)",
+      "비독점 제공 (저작권 본인 보유)",
     ],
-    notes: "장기 패시브 인컴. 다량 등록 시 수익화 효과 큼.",
+    notes: "다량 등록 시 패시브 인컴 효과 큼. 한국 마켓 1순위.",
+    nonExclusive: true,
   },
   {
+    id: "tooldi",
+    category: "stock",
+    name: "툴디 (Tooldi)",
+    emoji: "🧰",
+    mainSize: "자유 (PNG/SVG/JPG)",
+    count: "자유",
+    format: "PNG/SVG/JPG",
+    commission: "비독점 (수익 협의)",
+    reviewDays: "1주 이내",
+    difficulty: "쉬움",
+    expectedRevenue: "월 ₩3만~30만원",
+    submitUrl: "https://www.tooldi.com/creator",
+    steps: [
+      "툴디 회원가입 + 크리에이터 신청",
+      "크리에이터 센터에서 PNG/SVG 업로드",
+      "검수 후 마켓 노출",
+    ],
+    notes: "비독점 — 미리캔버스/크라우드픽과 동일 콘텐츠 동시 등록 가능.",
+    nonExclusive: true,
+  },
+  {
+    id: "crowdpic",
+    category: "stock",
+    name: "크라우드픽",
+    emoji: "📸",
+    mainSize: "자유 (이미지/벡터/캘리)",
+    count: "자유",
+    format: "PNG/JPG/AI/PSD/EPS",
+    commission: "작가 50%",
+    reviewDays: "1-3일",
+    difficulty: "쉬움",
+    expectedRevenue: "1컷 ₩500~750 (수익 분배 후)",
+    submitUrl: "https://www.crowdpic.net/apply",
+    steps: [
+      "크라우드픽 회원가입 → 작가 신청 (자격 심사 없음)",
+      "VibeMoji에서 PNG 다운로드",
+      "이미지 + 키워드 업로드 → 심사",
+      "승인 후 노출, 판매 시 수익",
+    ],
+    notes: "심사가 가벼워 첫 스톡 도전 추천. 2024년 가격 인상으로 단가 향상.",
+    nonExclusive: true,
+  },
+  {
+    id: "adobe-stock",
+    category: "stock",
+    name: "Adobe Stock",
+    emoji: "🅰️",
+    mainSize: "자유 (4MP+ 권장)",
+    count: "자유",
+    format: "PNG/JPG/AI/EPS/SVG",
+    commission: "33% (벡터/일러스트)",
+    reviewDays: "1주",
+    difficulty: "보통",
+    expectedRevenue: "1컷 $0.33~$1+ (글로벌)",
+    submitUrl: "https://contributor.stock.adobe.com/",
+    steps: [
+      "Adobe ID로 Contributor 가입",
+      "신원 인증 + 세금 정보 입력",
+      "VibeMoji에서 PNG/SVG 다운로드",
+      "키워드·카테고리 입력 후 제출",
+      "에디터 심사 (기술적 품질 + 상업성)",
+    ],
+    notes: "글로벌 시장 + Adobe 생태계 통합. 영문 키워드 필수.",
+    global: true,
+    nonExclusive: true,
+  },
+  {
+    id: "shutterstock",
+    category: "stock",
+    name: "Shutterstock",
+    emoji: "📷",
+    mainSize: "자유 (4MP+ 권장)",
+    count: "자유",
+    format: "PNG/JPG/AI/EPS",
+    commission: "약 25-27% (월 판매량 따라)",
+    reviewDays: "수일",
+    difficulty: "보통",
+    expectedRevenue: "1컷 $0.10~$0.45",
+    submitUrl: "https://submit.shutterstock.com/",
+    steps: [
+      "Contributor 계정 생성",
+      "신원 인증 + 결제 정보",
+      "이미지 업로드 → 키워드 → 카테고리",
+      "심사 통과 시 즉시 노출",
+    ],
+    notes: "최대 글로벌 시장. 단가는 낮지만 판매 빈도 높음.",
+    global: true,
+    nonExclusive: true,
+  },
+  {
+    id: "creative-market",
+    category: "stock",
+    name: "Creative Market",
+    emoji: "🎭",
+    mainSize: "자유",
+    count: "팩 단위 판매",
+    format: "PNG/SVG/AI/PSD",
+    commission: "작가 50% (또는 시그니처 70%)",
+    reviewDays: "1-2주 (셀러 심사)",
+    difficulty: "보통",
+    expectedRevenue: "팩 $5~$50",
+    submitUrl: "https://creativemarket.com/sell",
+    steps: [
+      "셀러 신청 (포트폴리오 5개 이상 권장)",
+      "심사 통과 후 샵 오픈",
+      "VibeMoji 32장 패키지로 업로드",
+      "제품 페이지·미리보기 작성",
+    ],
+    notes: "미국 디자이너 타겟. 영문 콘텐츠 + 고품질 미리보기 필수.",
+    global: true,
+    nonExclusive: true,
+  },
+  {
+    id: "postype",
+    category: "stock",
+    name: "포스타입",
+    emoji: "📝",
+    mainSize: "자유",
+    count: "자유",
+    format: "PNG/JPG (포스트 첨부)",
+    commission: "작가 90% (포스타입 10% + PG)",
+    reviewDays: "즉시",
+    difficulty: "쉬움",
+    expectedRevenue: "건당 ₩1,000~₩10,000",
+    submitUrl: "https://www.postype.com/",
+    steps: [
+      "포스타입 회원가입",
+      "[유료 포스트] 작성",
+      "VibeMoji에서 만든 스티커 팩 첨부 + 가격 설정",
+      "팬들에게 공유",
+    ],
+    notes: "팬덤·연재형 콘텐츠 강함. 캐릭터 IP 키우는 데 유리.",
+  },
+
+  // ─────────────────────────────────────────────────────────
+  // POD (Print On Demand)
+  // ─────────────────────────────────────────────────────────
+  {
+    id: "tenbyten",
+    category: "pod",
+    name: "텐바이텐 (10x10)",
+    emoji: "🔟",
+    mainSize: "굿즈별 상이",
+    count: "디자인 단위",
+    format: "PNG (고해상도)",
+    commission: "협의 (입점 심사 후)",
+    reviewDays: "2-4주",
+    difficulty: "보통",
+    expectedRevenue: "굿즈 단가 ₩3,000~₩30,000",
+    submitUrl: "https://www.10x10.co.kr/main/index.asp",
+    steps: [
+      "텐바이텐 셀러 입점 신청",
+      "사업자 등록 (개인/법인)",
+      "굿즈 시안 + 카탈로그 제출",
+      "MD 심사 후 입점",
+    ],
+    notes: "한국 디자인 굿즈 1번지. 사업자 등록 필요해 진입 약간 무거움.",
+  },
+  {
+    id: "marpple-shop",
+    category: "pod",
+    name: "마플샵",
+    emoji: "🛒",
+    mainSize: "굿즈별 상이",
+    count: "자유",
+    format: "PNG (300dpi)",
+    commission: "PG수수료·세금 외 0% (마진 자율)",
+    reviewDays: "1-2주",
+    difficulty: "쉬움",
+    expectedRevenue: "굿즈당 ₩1,000~₩10,000 마진",
+    submitUrl: "https://marpple.shop/kr",
+    steps: [
+      "마플샵 셀러 신청 (만 14세+)",
+      "VibeMoji 캐릭터로 굿즈 디자인 (스마트폰 케이스/엽서/스티커)",
+      "검수 통과 후 즉시 판매",
+    ],
+    notes: "재고·배송·CS 모두 마플이 처리. 진입 가장 쉬운 한국 POD.",
+  },
+  {
+    id: "redbubble",
+    category: "pod",
+    name: "Redbubble",
+    emoji: "🌍",
+    mainSize: "7632x6480 권장",
+    count: "디자인 단위",
+    format: "PNG 투명",
+    commission: "기본 마진 자율 설정 (보통 20%)",
+    reviewDays: "수일",
+    difficulty: "쉬움",
+    expectedRevenue: "디자인당 $0.5~$5 마진",
+    submitUrl: "https://www.redbubble.com/account/sell",
+    steps: [
+      "Redbubble 회원가입",
+      "VibeMoji 캐릭터로 고해상도 PNG 추출 (7632x6480)",
+      "Sell your art → 디자인 업로드 + 적용 굿즈 선택",
+      "태그·설명 입력",
+    ],
+    notes: "글로벌 POD 1순위. 디자인 1개로 50+ 굿즈 자동 생성.",
+    global: true,
+  },
+
+  // ─────────────────────────────────────────────────────────
+  // 디지털 크리에이터 (Digital / Creator)
+  // ─────────────────────────────────────────────────────────
+  {
     id: "etsy",
+    category: "digital",
     name: "Etsy 디지털 스티커",
     emoji: "🛍️",
     mainSize: "1000x1000+ (300dpi)",
     count: "자유",
     format: "PNG 투명",
-    commission: "$0.20/listing + 6.5%",
+    commission: "$0.20/listing + 6.5% 거래수수료",
     reviewDays: "즉시",
     difficulty: "쉬움",
-    expectedRevenue: "$3~25/팩",
+    expectedRevenue: "팩 $3~$25",
     submitUrl: "https://www.etsy.com/sell",
     steps: [
       "Etsy 셀러 계정 생성",
@@ -139,6 +398,110 @@ export const PLATFORMS: Platform[] = [
       "썸네일/설명/태그 입력 후 즉시 판매 시작",
     ],
     notes: "심사 없음 = 즉시 판매. 영문 키워드 SEO 중요.",
+    global: true,
+  },
+  {
+    id: "gumroad",
+    category: "digital",
+    name: "Gumroad",
+    emoji: "🍋",
+    mainSize: "자유",
+    count: "자유",
+    format: "PNG/ZIP/PDF",
+    commission: "10% 플랫폼 수수료 + PG",
+    reviewDays: "즉시",
+    difficulty: "쉬움",
+    expectedRevenue: "팩 $5~$50",
+    submitUrl: "https://gumroad.com/discover",
+    steps: [
+      "Gumroad 회원가입 + 페이아웃 설정",
+      "[+ New product] → Digital product",
+      "VibeMoji에서 만든 ZIP 업로드 + 가격 설정",
+      "랜딩 페이지 만들고 SNS로 공유",
+    ],
+    notes: "글로벌 + 즉시 판매 + URL만 공유. 인디 크리에이터 표준.",
+    global: true,
+  },
+  {
+    id: "webuding",
+    category: "digital",
+    name: "위버딩",
+    emoji: "🪄",
+    mainSize: "자유",
+    count: "자유",
+    format: "PNG/ZIP",
+    commission: "협의 (셀러 마진 자율)",
+    reviewDays: "1주 이내",
+    difficulty: "쉬움",
+    expectedRevenue: "팩 ₩3,000~₩30,000",
+    submitUrl: "https://www.webuding.com/",
+    steps: [
+      "위버딩 셀러 가입",
+      "VibeMoji 스티커 팩 업로드",
+      "가격·설명 작성",
+    ],
+    notes: "한국 디지털 콘텐츠 마켓. 신생이라 경쟁 적음.",
+  },
+  {
+    id: "haple",
+    category: "digital",
+    name: "하플",
+    emoji: "🌟",
+    mainSize: "자유",
+    count: "자유",
+    format: "PNG/ZIP",
+    commission: "협의",
+    reviewDays: "1주",
+    difficulty: "쉬움",
+    expectedRevenue: "팩 ₩2,000~₩20,000",
+    submitUrl: "https://haple.co.kr/",
+    steps: [
+      "하플 크리에이터 가입",
+      "스티커 팩 업로드 + 가격 설정",
+      "검수 후 판매",
+    ],
+    notes: "한국 디지털 크리에이터 마켓. 캐주얼 콘텐츠 친화.",
+  },
+  {
+    id: "ctee",
+    category: "digital",
+    name: "크티 (Ctee)",
+    emoji: "✨",
+    mainSize: "자유",
+    count: "자유",
+    format: "PNG/ZIP/PDF",
+    commission: "거래수수료 약 5-8%",
+    reviewDays: "즉시",
+    difficulty: "쉬움",
+    expectedRevenue: "팩 ₩2,000~₩30,000",
+    submitUrl: "https://ctee.kr/",
+    steps: [
+      "크티 회원가입 + 결제 정보",
+      "[상품 등록] → 디지털 파일 업로드",
+      "썸네일·설명 + 가격 설정",
+      "즉시 판매",
+    ],
+    notes: "한국판 Gumroad. 카드결제·계좌이체 즉시 정산.",
+  },
+  {
+    id: "groble",
+    category: "digital",
+    name: "그로블",
+    emoji: "🪴",
+    mainSize: "자유",
+    count: "자유",
+    format: "PNG/ZIP",
+    commission: "협의",
+    reviewDays: "1주",
+    difficulty: "쉬움",
+    expectedRevenue: "팩 ₩2,000~₩20,000",
+    submitUrl: "https://groble.com/",
+    steps: [
+      "그로블 셀러 가입",
+      "디지털 상품 업로드 + 가격 설정",
+      "마켓 노출",
+    ],
+    notes: "한국 신생 크리에이터 마켓. 진입 용이.",
   },
 ];
 
@@ -147,4 +510,15 @@ export const EMOTION_SLOTS_32 = [
   "ㅋㅋㅋ", "ㅎㅎ", "ㅠㅠ", "어머", "헐", "대박", "오케이", "굿",
   "화남", "삐짐", "슬픔", "지침", "졸려", "배고파", "심심", "뭐해",
   "축하해", "응원해", "힘내", "괜찮아", "미안", "부탁", "콜", "빠이",
+];
+
+export function getPlatformsByCategory(category: PlatformCategory): Platform[] {
+  return PLATFORMS.filter((p) => p.category === category);
+}
+
+export const ALL_CATEGORIES: PlatformCategory[] = [
+  "messenger",
+  "stock",
+  "pod",
+  "digital",
 ];

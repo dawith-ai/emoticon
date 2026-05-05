@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { PLATFORMS } from "@/lib/platforms";
+import { PLATFORMS, CATEGORY_META, ALL_CATEGORIES } from "@/lib/platforms";
 
 export default function HomePage() {
   return (
@@ -63,36 +63,50 @@ export default function HomePage() {
 
       <section>
         <div className="mb-6 text-center">
-          <h2 className="text-2xl font-bold">한 번 만들면 이런 곳에 팔 수 있어요</h2>
+          <h2 className="text-2xl font-bold">
+            한 번 만들면 {PLATFORMS.length}개 플랫폼에 팔 수 있어요
+          </h2>
           <p className="mt-2 text-base-content/70">
-            플랫폼별 사양 자동 변환 + 신청 가이드 제공
+            플랫폼별 사양 자동 변환 + 신청 가이드 + 카테고리별 추천
           </p>
         </div>
-        <div className="grid gap-3 md:grid-cols-3">
-          {PLATFORMS.map((p) => (
-            <div key={p.id} className="card border border-base-300 bg-base-100">
-              <div className="card-body p-5">
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl">{p.emoji}</span>
-                  <h3 className="font-bold">{p.name}</h3>
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+          {ALL_CATEGORIES.map((cat) => {
+            const list = PLATFORMS.filter((p) => p.category === cat);
+            const meta = CATEGORY_META[cat];
+            return (
+              <div key={cat} className="card border border-base-300 bg-base-100">
+                <div className="card-body p-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-3xl">{meta.emoji}</span>
+                    <div>
+                      <h3 className="font-bold">{meta.label}</h3>
+                      <p className="text-xs text-base-content/60">{list.length}개 플랫폼</p>
+                    </div>
+                  </div>
+                  <p className="mt-1 text-xs text-base-content/70">
+                    {meta.description}
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {list.slice(0, 6).map((p) => (
+                      <span key={p.id} className="badge badge-ghost badge-sm">
+                        {p.emoji} {p.name.replace(/\s*\([^)]*\)/g, "")}
+                      </span>
+                    ))}
+                    {list.length > 6 && (
+                      <span className="badge badge-ghost badge-sm">
+                        +{list.length - 6}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <div className="mt-2 flex flex-wrap gap-1 text-xs">
-                  <span className="badge badge-ghost">{p.mainSize}</span>
-                  <span className="badge badge-ghost">{p.count}</span>
-                  <span className="badge badge-primary badge-outline">
-                    {p.commission}
-                  </span>
-                </div>
-                <p className="mt-1 text-xs text-base-content/60">
-                  심사 {p.reviewDays} · 난이도 {p.difficulty}
-                </p>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
         <div className="mt-6 text-center">
           <Link href="/marketplace" className="btn btn-primary">
-            전체 신청 가이드 보기 →
+            전체 {PLATFORMS.length}개 플랫폼 신청 가이드 보기 →
           </Link>
         </div>
       </section>
