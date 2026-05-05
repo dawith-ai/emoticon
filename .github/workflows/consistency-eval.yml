@@ -1,0 +1,66 @@
+name: Consistency Evaluation
+
+on:
+  pull_request:
+    paths:
+      - "evals/**"
+      - "lib/platforms.ts"
+      - ".github/workflows/consistency-eval.yml"
+  workflow_dispatch:
+    inputs:
+      generator:
+        description: "Generator to use"
+        required: true
+        default: "mock"
+        type: choice
+        options:
+          - mock
+          - nano-banana
+
+jobs:
+  smoke-test:
+    name: Mock smoke test (no API)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run test
+      - name: Run mock evaluation
+        run: npm run eval -- --generator mock --no-llm-judge
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: consistency-report-mock
+          path: evals/runs/
+
+  nano-banana-eval:
+    name: Nano Banana real evaluation
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.generator == 'nano-banana'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Run Nano Banana eval (1 character)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          npm run eval -- \
+            --generator nano-banana \
+            --characters pink-rabbit \
+            --slots 1,5,11,17,25 \
+            --llm-judge-rate 1.0
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: consistency-report-nano-banana
+          path: evals/runs/

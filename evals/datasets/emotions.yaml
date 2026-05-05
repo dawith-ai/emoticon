@@ -1,0 +1,100 @@
+# 32개 감정/액션 슬롯 — 카카오 이모티콘 통상 구성을 따름
+# 각 감정은 기본 한국어 라벨 + 영문 액션 description (모델 프롬프트용)
+
+emotions:
+  - slot: 1
+    label: 안녕
+    action: waving hello with one paw raised, smiling warmly
+  - slot: 2
+    label: 반가워
+    action: jumping with both arms up in joy
+  - slot: 3
+    label: 고마워
+    action: hands clasped together in a thank-you gesture, slight bow
+  - slot: 4
+    label: 사랑해
+    action: holding a red heart with both paws, blushing cheeks
+  - slot: 5
+    label: 최고
+    action: thumbs up with confident expression
+  - slot: 6
+    label: 잘자
+    action: eyes closed, sleeping with a small Z above head
+  - slot: 7
+    label: 잘가
+    action: waving goodbye with a slightly sad smile
+  - slot: 8
+    label: 하이
+    action: peace sign with one paw, cheerful expression
+  - slot: 9
+    label: ㅋㅋㅋ
+    action: laughing hard, holding belly, eyes squeezed shut
+  - slot: 10
+    label: ㅎㅎ
+    action: gentle smile with one paw covering mouth
+  - slot: 11
+    label: ㅠㅠ
+    action: crying with big tears streaming down
+  - slot: 12
+    label: 어머
+    action: surprised, both paws on cheeks, mouth open in O shape
+  - slot: 13
+    label: 헐
+    action: shocked expression, jaw dropped, eyes wide
+  - slot: 14
+    label: 대박
+    action: amazed, sparkles around the head, mouth wide open
+  - slot: 15
+    label: 오케이
+    action: making OK sign with paw fingers
+  - slot: 16
+    label: 굿
+    action: thumbs up with a wink
+  - slot: 17
+    label: 화남
+    action: angry with steam coming out of ears, frowning eyebrows
+  - slot: 18
+    label: 삐짐
+    action: pouting with arms crossed, looking sideways
+  - slot: 19
+    label: 슬픔
+    action: head down, single tear, drooping ears
+  - slot: 20
+    label: 지침
+    action: tired, slumped over, sweat drop on forehead
+  - slot: 21
+    label: 졸려
+    action: yawning with paw covering mouth, half-closed eyes
+  - slot: 22
+    label: 배고파
+    action: holding empty bowl, drooling slightly
+  - slot: 23
+    label: 심심
+    action: lying on belly, chin resting on paws, blank stare
+  - slot: 24
+    label: 뭐해
+    action: tilting head with a curious questioning look, "?" symbol
+  - slot: 25
+    label: 축하해
+    action: throwing confetti with both paws, party hat on head
+  - slot: 26
+    label: 응원해
+    action: holding a small flag or pom-pom, encouraging smile
+  - slot: 27
+    label: 힘내
+    action: clenched paw raised, determined expression
+  - slot: 28
+    label: 괜찮아
+    action: gentle reassuring smile, paw extended
+  - slot: 29
+    label: 미안
+    action: head bowed, paw scratching back of head sheepishly
+  - slot: 30
+    label: 부탁
+    action: hands clasped pleadingly, big puppy eyes
+  - slot: 31
+    label: 콜
+    action: holding paw to ear like a phone, smiling
+  - slot: 32
+    label: 빠이
+    action: blowing a kiss with one paw, winking

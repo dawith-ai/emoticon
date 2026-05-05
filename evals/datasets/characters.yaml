@@ -1,0 +1,89 @@
+# 캐릭터 시드 데이터셋 — 일관성 평가 기준 캐릭터 5종 + adversarial 1종
+# 각 캐릭터는 시드 prompt + 핵심 식별 특징(features)으로 구성
+# features는 LLM-judge가 일관성을 판정할 때 체크리스트로 사용
+
+characters:
+  - id: pink-rabbit
+    name: 핑크 토끼
+    seed_prompt: |
+      A cute pink rabbit emoticon character, simple flat illustration style,
+      round body, two long ears, large black eyes, small mouth, white belly patch,
+      thick black outline, plain white background, sticker style.
+    features:
+      - 분홍색 몸통
+      - 긴 두 귀
+      - 큰 검은 눈
+      - 흰 배 무늬
+      - 두꺼운 검정 외곽선
+    style_keywords: ["flat illustration", "kawaii", "thick outline", "no shading"]
+
+  - id: gray-bear
+    name: 회색 곰돌이
+    seed_prompt: |
+      A sleepy gray bear emoticon character, chibi style, large round head,
+      tiny rounded ears, half-closed sleepy eyes, light cream snout,
+      black thick outline, white background, sticker style.
+    features:
+      - 회색 둥근 몸
+      - 작고 동그란 귀
+      - 졸린 반쯤 감은 눈
+      - 크림색 주둥이
+    style_keywords: ["chibi", "sleepy", "soft", "thick outline"]
+
+  - id: orange-cat
+    name: 주황 고양이
+    seed_prompt: |
+      A mischievous orange cat emoticon, flat sticker style, triangle ears,
+      green slanted eyes with a smirk, white chest patch, striped tail,
+      bold black outline, plain background.
+    features:
+      - 주황색 줄무늬 몸
+      - 삼각형 귀
+      - 초록 째진 눈
+      - 흰 가슴 무늬
+      - 줄무늬 꼬리
+    style_keywords: ["mischievous", "smirk", "bold outline"]
+
+  - id: purple-hamster
+    name: 보라 햄스터
+    seed_prompt: |
+      A cynical purple hamster emoticon, round chubby body, small round ears,
+      tiny dot eyes with raised eyebrow, light pink cheeks, no visible tail,
+      thick black outline, simple flat coloring, white background.
+    features:
+      - 보라색 통통한 몸
+      - 작은 둥근 귀
+      - 점 같은 눈 + 한쪽 올라간 눈썹
+      - 분홍 볼터치
+    style_keywords: ["cynical", "chubby", "minimal eyes"]
+
+  - id: brown-puppy
+    name: 갈색 강아지
+    seed_prompt: |
+      A friendly brown puppy emoticon, floppy ears, round black nose,
+      pink tongue out, dark brown spots on left ear and around right eye,
+      thick black outline, sticker style, white background.
+    features:
+      - 갈색 몸
+      - 늘어진 귀
+      - 동그란 검은 코
+      - 분홍 혀
+      - 왼쪽 귀와 오른쪽 눈 주변 진한 갈색 점
+
+  # Adversarial: 일관성 깨지기 쉬운 까다로운 캐릭터
+  - id: detailed-fox
+    name: 디테일 여우 (adversarial)
+    seed_prompt: |
+      A fox emoticon with intricate details, three-toned fur (orange body,
+      white belly, black paws), heart-shaped pink nose, golden eyes with
+      pupils, curly tail with white tip, blue ribbon collar with star pendant,
+      thick black outline, sticker style.
+    features:
+      - 3색 털 (주황/흰/검정)
+      - 하트 모양 분홍 코
+      - 황금 눈동자
+      - 흰 끝 말린 꼬리
+      - 별 펜던트 달린 파란 리본
+    style_keywords: ["detailed", "multi-tone", "accessory"]
+    adversarial: true
+    notes: "디테일이 많을수록 모델이 매번 다르게 그릴 확률이 높음 — 일관성 한계 탐색용"

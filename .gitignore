@@ -44,3 +44,6 @@ serviceAccountKey.json
 # IDE
 .vscode/
 .idea/
+
+# Evaluation runs (생성된 이미지 + 리포트)
+evals/runs/
