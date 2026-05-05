@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --vm-grad: linear-gradient(135deg, #ff5c8a 0%, #9c7bff 50%, #ffd166 100%);
+}
+
+html, body {
+  height: 100%;
+  font-family: Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Segoe UI", Roboto, sans-serif;
+}
+
+.bg-vm-grad {
+  background-image: var(--vm-grad);
+}
+
+.text-vm-grad {
+  background: var(--vm-grad);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+}
+
+.sticker-tile {
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #faf7ff;
+  border: 1px dashed #c8b8ff;
+  border-radius: 12px;
+  font-size: 2rem;
+}
+
+.sticker-tile.filled {
+  background: linear-gradient(135deg, #ffd5e5 0%, #ddd0ff 100%);
+  border: none;
+}
