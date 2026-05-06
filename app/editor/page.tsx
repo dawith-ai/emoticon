@@ -463,10 +463,11 @@ export default function EditorPage() {
     setSaveState("saving");
     setSaveMessage(null);
     try {
-      await addDoc(collection(db, "users", user.uid, "projects"), {
+      // 1. 프로젝트 메타데이터 저장
+      const projectRef = await addDoc(collection(db, "users", user.uid, "projects"), {
         title: `수동 에디터 세트 ${new Date().toLocaleDateString("ko-KR")}`,
         source: "editor",
-        status: "mock_draft",
+        status: "draft",
         activeSlot,
         filledSlots: Array.from(filledSlots).sort((a, b) => a - b),
         layerCount: layers.length,
@@ -474,7 +475,48 @@ export default function EditorPage() {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
+
+      // 2. 채워진 슬롯의 실제 PNG를 Storage에 업로드
+      const { uploadStickerPng, canvasToBlob } = await import("@/lib/firebase/storage");
+      let uploaded = 0;
+      let failed = 0;
+
+      for (const slot of Array.from(filledSlots)) {
+        // 슬롯별 합성 이미지 생성: 활성 슬롯이 아닌 경우 현재 표시 캔버스 그대로 저장 못 함
+        // 단순화: 현재 활성 슬롯(activeSlot)이 일치할 때만 실제 PNG 업로드
+        if (slot !== activeSlot) {
+          continue;
+        }
+        const display = displayRef.current;
+        if (!display) {
+          failed++;
+          continue;
+        }
+        try {
+          const blob = await canvasToBlob(display);
+          const result = await uploadStickerPng(
+            user.uid,
+            projectRef.id,
+            slot + 1,
+            EMOTION_SLOTS_32[slot],
+            blob
+          );
+          if (result) uploaded++;
+          else failed++;
+        } catch (err) {
+          console.error("Storage upload failed", err);
+          failed++;
+        }
+      }
+
       setSaveState("saved");
+      setSaveMessage(
+        uploaded > 0
+          ? `프로젝트 ${projectRef.id} 저장 완료 — Storage 업로드 ${uploaded}장${
+              failed ? `, 실패 ${failed}장` : ""
+            }`
+          : `메타데이터만 저장됨 (현재 슬롯 외 PNG는 자동 업로드 안 됨)`
+      );
     } catch (error) {
       setSaveState("error");
       setSaveMessage(

@@ -52,3 +52,4 @@ evals/runs/
 /out
 # Functions 빌드 결과
 /functions/lib
+/functions/node_modules

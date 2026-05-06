@@ -11,11 +11,21 @@ import {
 } from "firebase/firestore";
 import { useAuth } from "@/components/AuthProvider";
 import { getClientDb } from "@/lib/firebase/client";
+import { generateSeedCharacter, generateStickerSet } from "@/lib/firebase/functions";
 import { EMOTION_SLOTS_32 } from "@/lib/platforms";
 
 type Step = "input" | "seed" | "set" | "done";
+type CallMode = "mock" | "real";
 
 const SAMPLE_SEEDS = ["🐰", "🐻", "🐱", "🐹"];
+
+const EMOTION_DETAILS: Record<string, string> = {
+  안녕: "waving hello with one paw raised, smiling warmly",
+  반가워: "jumping with both arms up in joy",
+  고마워: "hands clasped together in a thank-you gesture",
+  사랑해: "holding a red heart with both paws, blushing cheeks",
+  최고: "thumbs up with confident expression",
+};
 
 export default function GeneratePage() {
   const { user, configured } = useAuth();
@@ -23,11 +33,18 @@ export default function GeneratePage() {
   const [prompt, setPrompt] = useState("분홍 토끼, 둥글둥글한 스타일, 살짝 시크한 표정");
   const [seedIdx, setSeedIdx] = useState(0);
   const [generated, setGenerated] = useState<number[]>([]);
+  const [callMode, setCallMode] = useState<CallMode>("mock");
+  const [callError, setCallError] = useState<string | null>(null);
+  const [callLog, setCallLog] = useState<string[]>([]);
   const projectIdRef = useRef<string | null>(null);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">(
     "idle"
   );
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+
+  const log = (line: string) => {
+    setCallLog((prev) => [...prev.slice(-30), `[${new Date().toLocaleTimeString()}] ${line}`]);
+  };
 
   const saveDraft = async (nextStep: Step, count = generated.length) => {
     if (!user) return;
@@ -69,14 +86,62 @@ export default function GeneratePage() {
     }
   };
 
-  const goSeed = () => {
+  const goSeed = async () => {
     setStep("seed");
-    void saveDraft("seed");
+    setCallError(null);
+    await saveDraft("seed");
+
+    if (callMode === "real") {
+      if (!user || !projectIdRef.current) {
+        setCallError("실호출 모드는 로그인 + Firestore 초안 저장 후에만 동작해요.");
+        return;
+      }
+      log("generateSeedCharacter 호출 시작");
+      const result = await generateSeedCharacter({
+        projectId: projectIdRef.current,
+        characterDescription: prompt,
+      });
+      if (result.ok) {
+        log(`✅ 시드 생성 완료 — ${result.data.seedPath}`);
+      } else {
+        setCallError(`${result.code ?? "error"}: ${result.error}`);
+        log(`❌ 실패 — ${result.code ?? ""} ${result.error}`);
+      }
+    }
   };
 
-  const goSet = () => {
+  const goSet = async () => {
     setStep("set");
-    void saveDraft("set", 0);
+    setCallError(null);
+    await saveDraft("set", 0);
+
+    if (callMode === "real" && user && projectIdRef.current) {
+      log("generateStickerSet 호출 시작 (32 슬롯)");
+      const emotions = EMOTION_SLOTS_32.map((label, idx) => ({
+        slot: idx + 1,
+        label,
+        action: EMOTION_DETAILS[label] ?? `${label} expression`,
+      }));
+      const result = await generateStickerSet({
+        projectId: projectIdRef.current,
+        emotions,
+      });
+      if (result.ok) {
+        setGenerated(
+          result.data.results.filter((r) => r.ok).map((r) => r.slot - 1)
+        );
+        log(`✅ 세트 완료 — ${result.data.successCount}/${emotions.length}`);
+        setStep("done");
+        await saveDraft("done", result.data.successCount);
+      } else {
+        setCallError(`${result.code ?? "error"}: ${result.error}`);
+        log(`❌ 세트 실패 — ${result.error}`);
+        setStep("seed");
+      }
+      return;
+    }
+
+    // Mock 진행 애니메이션
     let i = 0;
     const interval = setInterval(() => {
       i += 4;
@@ -97,6 +162,8 @@ export default function GeneratePage() {
     projectIdRef.current = null;
     setSaveState("idle");
     setSaveMessage(null);
+    setCallError(null);
+    setCallLog([]);
   };
 
   return (
@@ -104,6 +171,58 @@ export default function GeneratePage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">✨ AI 캐릭터 생성</h1>
         <Stepper current={step} />
+      </div>
+
+      <div className="card border border-base-300 bg-base-100">
+        <div className="card-body p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="font-bold">호출 모드</span>
+              <button
+                onClick={() => setCallMode("mock")}
+                className={`btn btn-xs ${
+                  callMode === "mock" ? "btn-primary" : "btn-ghost"
+                }`}
+              >
+                🎭 Mock
+              </button>
+              <button
+                onClick={() => setCallMode("real")}
+                disabled={!user || !configured}
+                className={`btn btn-xs ${
+                  callMode === "real" ? "btn-primary" : "btn-ghost"
+                }`}
+                title={!user ? "로그인 필요" : !configured ? "Firebase env 필요" : ""}
+              >
+                🔥 실제 (Firebase Function)
+              </button>
+            </div>
+            <Link href="/debug" className="link link-primary">
+              🩺 헬스체크
+            </Link>
+          </div>
+          {callMode === "real" && (
+            <p className="mt-1 text-xs text-base-content/60">
+              실제 모드는 시드 5💎 + 세트 100💎가 차감되고 Nano Banana로 32장이 생성돼요.
+              Functions 미배포 시 not-found 에러가 떨어집니다.
+            </p>
+          )}
+          {callError && (
+            <div className="alert alert-error mt-2 text-xs">
+              <span>❌ {callError}</span>
+            </div>
+          )}
+          {callLog.length > 0 && (
+            <details className="mt-2">
+              <summary className="cursor-pointer text-xs text-base-content/60">
+                📜 호출 로그 ({callLog.length})
+              </summary>
+              <pre className="mt-1 max-h-40 overflow-auto rounded bg-base-200 p-2 text-[11px]">
+                {callLog.join("\n")}
+              </pre>
+            </details>
+          )}
+        </div>
       </div>
 
       {!user && (
