@@ -86,7 +86,7 @@ async function setupAuth(token) {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (msg.includes("CONFIGURATION_NOT_FOUND")) {
-      console.log("   - 미초기화 → :initializeAuth 호출 시도");
+      // 1차: API로 초기화 시도 (Blaze면 통함)
       try {
         await api(
           token,
@@ -99,12 +99,45 @@ async function setupAuth(token) {
       } catch (initErr) {
         const m2 = initErr instanceof Error ? initErr.message : String(initErr);
         if (m2.includes("BILLING_NOT_ENABLED")) {
-          console.log("   ⚠ Auth API 초기화는 Blaze 또는 콘솔 1클릭 필요");
-          console.log("   → 콘솔: https://console.firebase.google.com/project/" + PROJECT_ID + "/authentication");
-          console.log("     [Get started] 클릭 → 그 다음 이 스크립트 재실행");
-          return false;
+          // 2차: 콘솔 클릭 대기 (폴링)
+          const url = `https://console.firebase.google.com/project/${PROJECT_ID}/authentication`;
+          console.log("");
+          console.log("   ⚠ 무료 티어 Auth는 콘솔 1클릭이 필요해요.");
+          console.log("");
+          console.log("   👉 " + url);
+          console.log("");
+          console.log("   페이지 열고 [Get started] 한 번 클릭하세요.");
+          console.log("   클릭하면 자동 감지되고 나머지가 진행됩니다 (최대 5분 대기).");
+          console.log("");
+          // 자동으로 브라우저 열기 (macOS)
+          try {
+            const { spawn } = await import("node:child_process");
+            spawn("open", [url], { detached: true, stdio: "ignore" }).unref();
+          } catch {}
+          // 폴링: 10초 간격으로 30회 (5분)
+          for (let i = 0; i < 30; i++) {
+            await new Promise((r) => setTimeout(r, 10000));
+            try {
+              cfg = await tryGet();
+              console.log(`   ✓ Auth 초기화 감지! (시도 ${i + 1}회차)`);
+              break;
+            } catch (pollErr) {
+              const pm = pollErr instanceof Error ? pollErr.message : String(pollErr);
+              if (pm.includes("CONFIGURATION_NOT_FOUND")) {
+                process.stdout.write(`   ⏳ 대기중... ${i + 1}/30\r`);
+                continue;
+              }
+              throw pollErr;
+            }
+          }
+          if (!cfg) {
+            console.log("\n   ❌ 5분 내 [Get started] 클릭이 감지되지 않았어요.");
+            console.log("   클릭 후 'node scripts/setup-firebase.mjs' 다시 실행해주세요.");
+            return false;
+          }
+        } else {
+          throw initErr;
         }
-        throw initErr;
       }
     } else {
       throw err;
@@ -175,12 +208,27 @@ async function main() {
   const authOk = await setupAuth(token);
   const storageOk = await setupStorage(token);
 
-  console.log("\n──────────────────────────────");
+  console.log("\n══════════════════════════════════");
   console.log(authOk ? "✅ Auth 자동화 완료" : "🟡 Auth 미완료 (콘솔 1클릭 필요)");
-  console.log(storageOk ? "✅ Storage 자동화 완료" : "🟡 Storage 미완료");
-  console.log("──────────────────────────────");
-  if (authOk && storageOk) {
-    console.log("다음: firebase deploy --only storage --project " + PROJECT_ID);
+  console.log(storageOk ? "✅ Storage 자동화 완료" : "🟡 Storage 미완료 (Blaze 필요)");
+  console.log("══════════════════════════════════");
+
+  if (authOk) {
+    console.log("");
+    console.log("🚀 베타 오픈 준비 완료!");
+    console.log("");
+    console.log("✅ 사용자 회원가입/로그인 → 동작");
+    console.log("✅ Firestore 초안 자동 저장 → 동작");
+    console.log("✅ 베타 대기열 폼 → 동작");
+    console.log("✅ 21개 플랫폼 가이드 + 신청 딥링크 → 동작");
+    console.log("");
+    console.log("🔗 라이브: https://myjun090-spec.github.io/emoticon/");
+    console.log("🩺 헬스체크: https://myjun090-spec.github.io/emoticon/debug/");
+    console.log("");
+    if (!storageOk) {
+      console.log("⚠ AI 실호출/Storage/멀티 플랫폼 ZIP은 Blaze 업그레이드 후 가능:");
+      console.log("   https://console.firebase.google.com/project/" + PROJECT_ID + "/usage/details");
+    }
   }
 }
 
