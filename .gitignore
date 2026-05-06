@@ -47,3 +47,8 @@ serviceAccountKey.json
 
 # Evaluation runs (생성된 이미지 + 리포트)
 evals/runs/
+
+# 정적 export 결과 (CI에서 빌드)
+/out
+# Functions 빌드 결과
+/functions/lib

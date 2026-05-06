@@ -1,0 +1,52 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+    function isUnder(maxBytes) {
+      return request.resource.size < maxBytes;
+    }
+
+    // ─────────────────────────────────────────
+    // /users/{userId}/projects/{projectId}/...
+    // 본인 프로젝트만 read/write. 업로드는 5MB, 이미지만.
+    // ─────────────────────────────────────────
+    match /users/{userId}/projects/{projectId}/{path=**} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId)
+                   && isImage()
+                   && isUnder(5 * 1024 * 1024);
+    }
+
+    // ─────────────────────────────────────────
+    // /users/{userId}/profile/{fileName}
+    // 프로필 이미지: 2MB 제한
+    // ─────────────────────────────────────────
+    match /users/{userId}/profile/{fileName} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId) && isImage() && isUnder(2 * 1024 * 1024);
+    }
+
+    // ─────────────────────────────────────────
+    // /public/...  — 마케팅 이미지, 약관 등 (모두 read 가능)
+    // ─────────────────────────────────────────
+    match /public/{path=**} {
+      allow read: if true;
+      allow write: if false;  // 관리자만 (콘솔에서 직접)
+    }
+
+    // 그 외 모든 경로 차단
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,75 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─────────────────────────────────────────
+    // 헬퍼 함수
+    // ─────────────────────────────────────────
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    function isAdmin() {
+      return isSignedIn() &&
+             request.auth.token.admin == true;
+    }
+
+    // ─────────────────────────────────────────
+    // users/{userId}
+    // ─────────────────────────────────────────
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      // 가입 시 생성은 Cloud Function이 담당. 클라이언트는 displayName/photoURL만 갱신
+      allow create: if isOwner(userId)
+                    && request.resource.data.credits == 50  // 무료 50 크레딧
+                    && request.resource.data.email is string;
+      allow update: if isOwner(userId)
+                    && (!('credits' in request.resource.data)
+                        || request.resource.data.credits == resource.data.credits);  // 클라이언트 크레딧 조작 불가
+      allow delete: if false;  // 회원 탈퇴는 Function으로
+
+      // users/{userId}/projects/{projectId}
+      match /projects/{projectId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId);
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId);
+
+        // users/{userId}/projects/{projectId}/stickers/{stickerId}
+        match /stickers/{stickerId} {
+          allow read: if isOwner(userId);
+          // 스티커 메타데이터 쓰기는 Function이 담당 (AI 생성 후)
+          allow write: if false;
+        }
+      }
+    }
+
+    // ─────────────────────────────────────────
+    // credits/transactions/{txId} — 크레딧 거래 내역
+    // 모든 쓰기는 Function 전용. 클라이언트는 자기 거래만 읽기 가능.
+    // ─────────────────────────────────────────
+    match /credits/transactions/{txId} {
+      allow read: if isSignedIn()
+                  && resource.data.userId == request.auth.uid;
+      allow write: if false;
+    }
+
+    // ─────────────────────────────────────────
+    // platforms/{platformId} — 플랫폼 마스터 데이터 (모두 read-only)
+    // ─────────────────────────────────────────
+    match /platforms/{platformId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ─────────────────────────────────────────
+    // 그 외 모든 경로는 차단
+    // ─────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
