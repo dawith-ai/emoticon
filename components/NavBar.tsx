@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { AuthStatus } from "@/components/AuthStatus";
 
 export function NavBar() {
   return (
@@ -19,13 +22,7 @@ export function NavBar() {
             수익화 허브
           </Link>
         </nav>
-        <div className="flex items-center gap-2">
-          <span className="badge badge-primary badge-outline gap-1">
-            <span>💎</span>
-            <span>50</span>
-          </span>
-          <button className="btn btn-primary btn-sm">로그인</button>
-        </div>
+        <AuthStatus />
       </div>
       <div className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4 py-2 md:hidden">
         <Link href="/generate" className="btn btn-ghost btn-xs flex-1">

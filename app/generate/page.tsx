@@ -1,6 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import Link from "next/link";
+import {
+  addDoc,
+  collection,
+  doc,
+  serverTimestamp,
+  updateDoc,
+} from "firebase/firestore";
+import { useAuth } from "@/components/AuthProvider";
+import { getClientDb } from "@/lib/firebase/client";
 import { EMOTION_SLOTS_32 } from "@/lib/platforms";
 
 type Step = "input" | "seed" | "set" | "done";
@@ -8,24 +18,75 @@ type Step = "input" | "seed" | "set" | "done";
 const SAMPLE_SEEDS = ["🐰", "🐻", "🐱", "🐹"];
 
 export default function GeneratePage() {
+  const { user, configured } = useAuth();
   const [step, setStep] = useState<Step>("input");
   const [prompt, setPrompt] = useState("분홍 토끼, 둥글둥글한 스타일, 살짝 시크한 표정");
   const [seedIdx, setSeedIdx] = useState(0);
   const [generated, setGenerated] = useState<number[]>([]);
+  const projectIdRef = useRef<string | null>(null);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">(
+    "idle"
+  );
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+
+  const saveDraft = async (nextStep: Step, count = generated.length) => {
+    if (!user) return;
+    const db = getClientDb();
+    if (!db) return;
+
+    setSaveState("saving");
+    setSaveMessage(null);
+    try {
+      const payload = {
+        title: prompt.slice(0, 48) || "무제 캐릭터",
+        prompt,
+        source: "generate",
+        status: nextStep === "done" ? "mock_completed" : "mock_draft",
+        seedIdx,
+        generatedCount: count,
+        updatedAt: serverTimestamp(),
+      };
+
+      const currentProjectId = projectIdRef.current;
+      if (currentProjectId) {
+        await updateDoc(
+          doc(db, "users", user.uid, "projects", currentProjectId),
+          payload
+        );
+      } else {
+        const created = await addDoc(collection(db, "users", user.uid, "projects"), {
+          ...payload,
+          createdAt: serverTimestamp(),
+        });
+        projectIdRef.current = created.id;
+      }
+      setSaveState("saved");
+    } catch (error) {
+      setSaveState("error");
+      setSaveMessage(
+        error instanceof Error ? error.message : "Firestore 저장에 실패했어요."
+      );
+    }
+  };
 
   const goSeed = () => {
     setStep("seed");
+    void saveDraft("seed");
   };
 
   const goSet = () => {
     setStep("set");
+    void saveDraft("set", 0);
     let i = 0;
     const interval = setInterval(() => {
       i += 4;
       setGenerated(Array.from({ length: Math.min(i, 32) }, (_, k) => k));
       if (i >= 32) {
         clearInterval(interval);
-        setTimeout(() => setStep("done"), 600);
+        setTimeout(() => {
+          setStep("done");
+          void saveDraft("done", 32);
+        }, 600);
       }
     }, 300);
   };
@@ -33,6 +94,9 @@ export default function GeneratePage() {
   const reset = () => {
     setStep("input");
     setGenerated([]);
+    projectIdRef.current = null;
+    setSaveState("idle");
+    setSaveMessage(null);
   };
 
   return (
@@ -41,6 +105,34 @@ export default function GeneratePage() {
         <h1 className="text-2xl font-bold">✨ AI 캐릭터 생성</h1>
         <Stepper current={step} />
       </div>
+
+      {!user && (
+        <div className="alert alert-warning text-sm">
+          <span>
+            로그인하면 생성 초안과 크레딧 상태가 Firestore에 저장돼요.
+            {!configured && " 현재 Firebase 환경변수는 아직 설정되지 않았어요."}
+          </span>
+          {configured && (
+            <Link href="/auth" className="btn btn-primary btn-sm">
+              로그인
+            </Link>
+          )}
+        </div>
+      )}
+      {user && (
+        <div className="alert text-xs">
+          <span>
+            Firestore 초안 저장:{" "}
+            {saveState === "saving"
+              ? "저장 중"
+              : saveState === "saved"
+              ? "저장됨"
+              : saveState === "error"
+              ? saveMessage
+              : "대기 중"}
+          </span>
+        </div>
+      )}
 
       {step === "input" && (
         <div className="card border border-base-300 bg-base-100">

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PLATFORMS, CATEGORY_META, ALL_CATEGORIES } from "@/lib/platforms";
+import { WaitlistForm } from "@/components/WaitlistForm";
 
 export default function HomePage() {
   return (
@@ -55,7 +56,7 @@ export default function HomePage() {
           <FeatureCard
             emoji="💰"
             title="수익화 허브"
-            desc="6개 플랫폼 사양·수수료·심사기간을 한 화면에. 신청 딥링크로 바로 이동."
+            desc="21개 플랫폼 사양·수수료·심사기간을 한 화면에. 신청 딥링크로 바로 이동."
             href="/marketplace"
           />
         </div>
@@ -134,6 +135,24 @@ export default function HomePage() {
             price="₩49,900"
             sub="30세트 + 갤러리"
           />
+        </div>
+      </section>
+
+      <section className="grid gap-6 md:grid-cols-2">
+        <WaitlistForm />
+        <div className="card border border-base-300 bg-base-100">
+          <div className="card-body p-5">
+            <h3 className="card-title text-lg">📰 베타 로드맵</h3>
+            <ul className="steps steps-vertical">
+              <li className="step step-primary">PRD 확정 + UI 목업</li>
+              <li className="step step-primary">일관성 평가 하네스</li>
+              <li className="step step-primary">Firebase Auth + Firestore 연동</li>
+              <li className="step step-primary">정적 GH Pages 자동 배포</li>
+              <li className="step">Nano Banana 실호출 + 멀티 플랫폼 ZIP</li>
+              <li className="step">Toss Payments + 크레딧 충전</li>
+              <li className="step">베타 오픈 (1차 100명)</li>
+            </ul>
+          </div>
         </div>
       </section>
     </div>

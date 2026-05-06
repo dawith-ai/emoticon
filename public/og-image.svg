@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF5C8A"/>
+      <stop offset="50%" stop-color="#9C7BFF"/>
+      <stop offset="100%" stop-color="#FFD166"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#g)"/>
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif" fill="white" text-anchor="middle">
+    <text x="600" y="240" font-size="80" font-weight="800">VibeMoji 🎨</text>
+    <text x="600" y="340" font-size="44" font-weight="600">한 줄로 32장 이모티콘 만들기</text>
+    <text x="600" y="420" font-size="28" opacity="0.92">카카오 · OGQ · LINE · Etsy 21개 플랫폼 자동 변환</text>
+    <text x="600" y="540" font-size="22" opacity="0.8">myjun090-spec.github.io/emoticon</text>
+  </g>
+</svg>

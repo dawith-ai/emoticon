@@ -1,6 +1,10 @@
 "use client";
 
 import { useRef, useState, useEffect, useCallback } from "react";
+import Link from "next/link";
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { useAuth } from "@/components/AuthProvider";
+import { getClientDb } from "@/lib/firebase/client";
 import { EMOTION_SLOTS_32 } from "@/lib/platforms";
 import {
   BRUSH_PRESETS,
@@ -23,6 +27,7 @@ type Tool = "brush" | "eraser" | "fill" | "ruler" | "text";
 type RulerKind = "line" | "rect" | "ellipse";
 
 export default function EditorPage() {
+  const { user, configured } = useAuth();
   const layerCanvases = useRef<Map<string, HTMLCanvasElement>>(new Map());
   const displayRef = useRef<HTMLCanvasElement>(null);
   const traceImageRef = useRef<HTMLImageElement | null>(null);
@@ -39,6 +44,10 @@ export default function EditorPage() {
   const [traceOpacity, setTraceOpacity] = useState(0.4);
   const [hasTraceImage, setHasTraceImage] = useState(false);
   const [recordingTimelapse, setRecordingTimelapse] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">(
+    "idle"
+  );
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
   const preset = getPreset(brushKind);
   const [brushSize, setBrushSize] = useState(preset.defaultSize);
@@ -438,6 +447,42 @@ export default function EditorPage() {
     });
   };
 
+  const saveSet = async () => {
+    if (!user) {
+      setSaveState("error");
+      setSaveMessage("로그인 후 Firestore에 저장할 수 있어요.");
+      return;
+    }
+    const db = getClientDb();
+    if (!db) {
+      setSaveState("error");
+      setSaveMessage("Firebase 클라이언트 설정이 필요해요.");
+      return;
+    }
+
+    setSaveState("saving");
+    setSaveMessage(null);
+    try {
+      await addDoc(collection(db, "users", user.uid, "projects"), {
+        title: `수동 에디터 세트 ${new Date().toLocaleDateString("ko-KR")}`,
+        source: "editor",
+        status: "mock_draft",
+        activeSlot,
+        filledSlots: Array.from(filledSlots).sort((a, b) => a - b),
+        layerCount: layers.length,
+        hasTraceImage,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      setSaveState("saved");
+    } catch (error) {
+      setSaveState("error");
+      setSaveMessage(
+        error instanceof Error ? error.message : "Firestore 저장에 실패했어요."
+      );
+    }
+  };
+
   const totalProgress = filledSlots.size;
   const activeLayer = layers.find((l) => l.id === activeLayerId);
 
@@ -463,6 +508,33 @@ export default function EditorPage() {
           </button>
         </div>
       </div>
+
+      {!user && (
+        <div className="alert alert-warning text-sm">
+          <span>
+            로그인하면 에디터 세트 메타데이터를 Firestore에 저장할 수 있어요.
+            {!configured && " 현재 Firebase 환경변수는 아직 설정되지 않았어요."}
+          </span>
+          {configured && (
+            <Link href="/auth" className="btn btn-primary btn-sm">
+              로그인
+            </Link>
+          )}
+        </div>
+      )}
+      {user && saveState !== "idle" && (
+        <div
+          className={`alert text-xs ${
+            saveState === "error" ? "alert-error" : "alert-success"
+          }`}
+        >
+          {saveState === "saving"
+            ? "Firestore 저장 중..."
+            : saveState === "saved"
+            ? "Firestore에 에디터 초안을 저장했어요."
+            : saveMessage}
+        </div>
+      )}
 
       <div className="grid gap-3 lg:grid-cols-[80px_1fr_280px]">
         {/* 좌측 도구 팔레트 */}
@@ -740,7 +812,13 @@ export default function EditorPage() {
               ))}
             </div>
             <div className="mt-2 flex flex-col gap-1">
-              <button className="btn btn-primary btn-sm">세트 저장</button>
+              <button
+                onClick={saveSet}
+                disabled={saveState === "saving"}
+                className="btn btn-primary btn-sm"
+              >
+                {saveState === "saving" ? "저장 중..." : "세트 저장"}
+              </button>
               <button className="btn btn-ghost btn-sm">📤 ZIP 패키징</button>
             </div>
           </div>
