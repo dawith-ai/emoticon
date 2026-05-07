@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 
 export const dynamic = "force-static";
 
-const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://myjun090-spec.github.io/emoticon";
+const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://dawith-ai.github.io/emoticon";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();

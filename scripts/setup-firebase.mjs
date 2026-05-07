@@ -2,7 +2,7 @@
 /**
  * Firebase 콘솔 자동 셋업 — REST API로 다음 3가지 처리:
  *   1. Email/Password Auth Provider 활성화
- *   2. Authorized domain (myjun090-spec.github.io) 추가
+ *   2. Authorized domain (dawith-ai.github.io) 추가
  *   3. 기본 Storage 버킷 활성화
  *
  * Firebase CLI가 보관한 OAuth 토큰을 그대로 사용 (별도 인증 불필요).
@@ -13,7 +13,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 const PROJECT_ID = process.argv[2] || "vibemoji-app";
-const EXTRA_DOMAIN = process.argv[3] || "myjun090-spec.github.io";
+const EXTRA_DOMAIN = process.argv[3] || "dawith-ai.github.io";
 
 function loadAccessToken() {
   const cfgPath = join(homedir(), ".config/configstore/firebase-tools.json");
@@ -222,8 +222,8 @@ async function main() {
     console.log("✅ 베타 대기열 폼 → 동작");
     console.log("✅ 21개 플랫폼 가이드 + 신청 딥링크 → 동작");
     console.log("");
-    console.log("🔗 라이브: https://myjun090-spec.github.io/emoticon/");
-    console.log("🩺 헬스체크: https://myjun090-spec.github.io/emoticon/debug/");
+    console.log("🔗 라이브: https://dawith-ai.github.io/emoticon/");
+    console.log("🩺 헬스체크: https://dawith-ai.github.io/emoticon/debug/");
     console.log("");
     if (!storageOk) {
       console.log("⚠ AI 실호출/Storage/멀티 플랫폼 ZIP은 Blaze 업그레이드 후 가능:");

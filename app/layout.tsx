@@ -6,7 +6,7 @@ import { Footer } from "@/components/Footer";
 import { CookieConsent } from "@/components/CookieConsent";
 
 const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL ?? "https://myjun090-spec.github.io/emoticon";
+  process.env.NEXT_PUBLIC_SITE_URL ?? "https://dawith-ai.github.io/emoticon";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

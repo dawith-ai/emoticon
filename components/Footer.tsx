@@ -46,7 +46,7 @@ export function Footer() {
             <li><Link href="/terms" className="link link-hover">이용약관</Link></li>
             <li>
               <a
-                href="https://github.com/myjun090-spec/emoticon"
+                href="https://github.com/dawith-ai/emoticon"
                 target="_blank"
                 rel="noreferrer"
                 className="link link-hover"

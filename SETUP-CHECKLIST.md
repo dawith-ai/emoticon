@@ -1,7 +1,7 @@
 # VibeMoji 발행 마지막 단계
 
-> 코드는 모두 깔려 있고, GH Pages에 라이브 배포돼있어요 — https://myjun090-spec.github.io/emoticon/  
-> Firestore 룰도 라이브 배포 완료. 헬스체크: https://myjun090-spec.github.io/emoticon/debug/
+> 코드는 모두 깔려 있고, GH Pages에 라이브 배포돼있어요 — https://dawith-ai.github.io/emoticon/  
+> Firestore 룰도 라이브 배포 완료. 헬스체크: https://dawith-ai.github.io/emoticon/debug/
 
 이 문서는 **REST API로 자동화 안 되는 항목**만 정리했어요.  
 나머지(API 활성화, Identity Toolkit 설정 패치, 도메인 추가, Firestore 배포)는 `node scripts/setup-firebase.mjs`로 자동 처리됩니다.
@@ -38,12 +38,12 @@
 ### 클릭 후 자동 처리
 
 ```bash
-node scripts/setup-firebase.mjs vibemoji-app myjun090-spec.github.io
+node scripts/setup-firebase.mjs vibemoji-app dawith-ai.github.io
 ```
 
 이 한 줄이:
 - Email/Password Provider 활성화
-- `myjun090-spec.github.io` + `localhost`를 authorized domains에 추가
+- `dawith-ai.github.io` + `localhost`를 authorized domains에 추가
 - 모든 결과 검증
 
 ---
@@ -64,7 +64,7 @@ PRD 기준 비용 시뮬:
 
 ```bash
 # Storage 버킷 자동 생성 + 룰 배포
-node scripts/setup-firebase.mjs vibemoji-app myjun090-spec.github.io
+node scripts/setup-firebase.mjs vibemoji-app dawith-ai.github.io
 firebase deploy --only storage --project vibemoji-app
 
 # Functions 배포 (GEMINI_API_KEY 필요 — 단계 3)
@@ -96,8 +96,8 @@ firebase functions:secrets:set GEMINI_API_KEY --project vibemoji-app
 
 배포 완료 후:
 
-1. https://myjun090-spec.github.io/emoticon/auth/ 회원가입
-2. https://myjun090-spec.github.io/emoticon/debug/ 자동 헬스체크 7개 모두 ✓ 확인
+1. https://dawith-ai.github.io/emoticon/auth/ 회원가입
+2. https://dawith-ai.github.io/emoticon/debug/ 자동 헬스체크 7개 모두 ✓ 확인
 
 | 검사 | 통과 의미 |
 |------|----------|
