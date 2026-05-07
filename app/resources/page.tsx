@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { ResourceSubmissionForm } from "@/components/ResourceSubmissionForm";
 
 export const metadata: Metadata = {
   title: "외부 자료 큐레이션 — VibeMoji",
@@ -221,12 +222,8 @@ export default function ResourcesPage() {
       </div>
 
       <div className="card border border-dashed border-base-300 bg-base-100">
-        <div className="card-body p-5 text-sm text-base-content/70">
-          <h3 className="font-bold text-base-content">제보 환영</h3>
-          <p>
-            추가하면 좋은 자료/도구가 있다면 알려주세요. 원작자 동의 하에
-            큐레이션에 추가하고, 출처와 사용법을 함께 정리해둘게요.
-          </p>
+        <div className="card-body p-5">
+          <ResourceSubmissionForm />
         </div>
       </div>
     </div>

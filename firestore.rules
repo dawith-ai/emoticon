@@ -65,6 +65,17 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // public/{topic}/{collection}/{itemId} — 베타 대기열, 자료 제보 등
+    // 누구나 한 번 쓸 수 있고, 읽기/수정/삭제는 관리자만.
+    // topic 화이트리스트 + 페이로드 필수 필드 검증으로 어뷰즈 방지.
+    match /public/{topic}/{collection}/{itemId} {
+      allow create: if (topic == "waitlist" || topic == "resource_submissions")
+                    && request.resource.data.createdAt is timestamp
+                    && request.resource.data.size() < 30;  // 필드 30개 미만
+      allow read: if isAdmin();
+      allow update, delete: if false;
+    }
+
     // ─────────────────────────────────────────
     // 그 외 모든 경로는 차단
     // ─────────────────────────────────────────

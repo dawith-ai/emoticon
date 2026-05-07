@@ -9,6 +9,7 @@ import {
   type FitMode,
   type PlatformSpec,
 } from "../_lib/resize";
+import { compressPngTo, KAKAO_STATIC_MAX_BYTES } from "../_lib/compress";
 
 type PreviewBg = "checker" | "light" | "dark";
 
@@ -55,6 +56,8 @@ export default function ResizeToolPage() {
   const [fitMode, setFitMode] = useState<FitMode>("contain");
   const [bg, setBg] = useState<PreviewBg>("checker");
   const [busy, setBusy] = useState(false);
+  const [kakaoCompress, setKakaoCompress] = useState(true);
+  const [compressLog, setCompressLog] = useState<string[]>([]);
   const [zipReady, setZipReady] = useState<{ url: string; size: number; count: number } | null>(
     null,
   );
@@ -121,22 +124,39 @@ export default function ResizeToolPage() {
   const buildZip = async () => {
     if (sources.length === 0 || selectedPlatforms.length === 0) return;
     setBusy(true);
+    setCompressLog([]);
     try {
       const { default: JSZip } = await import("jszip");
       const zip = new JSZip();
+      const log: string[] = [];
 
       for (const src of sources) {
         for (const platform of selectedPlatforms) {
           const dir = zip.folder(platform.id) || zip;
+          const useKakaoCompress =
+            kakaoCompress && platform.id === "kakao-static";
           for (const target of platform.targets) {
             const canvas = resizeImage(src.el, target, fitMode);
-            const blob = await canvasToPng(canvas);
+            let blob: Blob;
+            if (useKakaoCompress) {
+              const result = await compressPngTo(canvas, KAKAO_STATIC_MAX_BYTES);
+              blob = result.blob;
+              log.push(
+                `${src.baseName} → ${target.id}: ${(blob.size / 1024).toFixed(1)}KB ` +
+                  `(레벨 ${result.level}, RGB ${result.rgbBits}비트${
+                    result.alphaThreshold ? `, α≥${result.alphaThreshold}` : ""
+                  }${result.satisfied ? "" : " — 150KB 초과"})`,
+              );
+            } else {
+              blob = await canvasToPng(canvas);
+            }
             const filename = `${src.baseName}_${target.id}_${target.width}x${target.height}.png`;
             dir.file(filename, blob);
           }
         }
       }
 
+      setCompressLog(log);
       const blob = await zip.generateAsync({ type: "blob" });
       const url = URL.createObjectURL(blob);
       setZipReady({ url, size: blob.size, count: totalOutputs });
@@ -352,6 +372,26 @@ export default function ResizeToolPage() {
               </div>
 
               <div>
+                <label className="label cursor-pointer py-1 text-xs">
+                  <span className="label-text">
+                    🗜️ 카카오 ≤150KB 자동 압축
+                  </span>
+                  <input
+                    type="checkbox"
+                    className="checkbox checkbox-primary checkbox-xs"
+                    checked={kakaoCompress}
+                    onChange={(e) => {
+                      setKakaoCompress(e.target.checked);
+                      setZipReady(null);
+                    }}
+                  />
+                </label>
+                <p className="text-[10px] text-base-content/60">
+                  카카오 멈춤 변환에만 적용 — RGB 비트 양자화로 단계별 압축. 다른 플랫폼은 원본 PNG 그대로.
+                </p>
+              </div>
+
+              <div>
                 <label className="label py-1 text-xs font-bold">미리보기 배경</label>
                 <div className="flex gap-1">
                   <button
@@ -410,6 +450,17 @@ export default function ResizeToolPage() {
                     옵션 다시 변경
                   </button>
                 </>
+              )}
+
+              {compressLog.length > 0 && (
+                <details className="mt-2 text-[10px]">
+                  <summary className="cursor-pointer text-base-content/60">
+                    🗜️ 카카오 압축 로그 ({compressLog.length})
+                  </summary>
+                  <pre className="mt-1 max-h-40 overflow-auto rounded bg-base-200 p-2">
+                    {compressLog.join("\n")}
+                  </pre>
+                </details>
               )}
             </div>
           </aside>

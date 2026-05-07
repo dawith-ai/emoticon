@@ -15,6 +15,7 @@ import {
 import { Stabilizer } from "./_lib/stabilizer";
 import { CanvasHistory, LayerSnapshot } from "./_lib/canvas-history";
 import { DEFAULT_LAYERS, Layer, MAX_LAYERS } from "./_lib/layers";
+import { applyOutline } from "@/app/tools/_lib/outline";
 
 const CANVAS_SIZE = 360;
 const COLORS = [
@@ -44,6 +45,9 @@ export default function EditorPage() {
   const [traceOpacity, setTraceOpacity] = useState(0.4);
   const [hasTraceImage, setHasTraceImage] = useState(false);
   const [recordingTimelapse, setRecordingTimelapse] = useState(false);
+  const [outlineOpen, setOutlineOpen] = useState(false);
+  const [outlineThickness, setOutlineThickness] = useState(4);
+  const [outlineColor, setOutlineColor] = useState("#FFFFFF");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">(
     "idle"
   );
@@ -525,6 +529,46 @@ export default function EditorPage() {
     }
   };
 
+  const applyOutlineToActiveLayer = () => {
+    const layerCanvas = layerCanvases.current.get(activeLayerId);
+    const ctx = layerCanvas?.getContext("2d");
+    if (!layerCanvas || !ctx) return;
+
+    // 빈 레이어 가드
+    const before = ctx.getImageData(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+    let hasPixel = false;
+    for (let i = 3; i < before.data.length; i += 4) {
+      if (before.data[i] > 0) {
+        hasPixel = true;
+        break;
+      }
+    }
+    if (!hasPixel) {
+      alert("활성 레이어에 그림이 없어요. 먼저 캐릭터를 그린 뒤 [테두리]를 적용해주세요.");
+      return;
+    }
+
+    history.current.commit(snapshotFrame());
+
+    const hex = outlineColor.replace("#", "");
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+
+    const result = applyOutline(layerCanvas, {
+      thickness: outlineThickness,
+      color: { r, g, b, a: 255 },
+      alphaThreshold: 16,
+    });
+
+    // 결과를 활성 레이어에 다시 그리기
+    ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+    ctx.drawImage(result, 0, 0, CANVAS_SIZE, CANVAS_SIZE);
+    composite();
+    setOutlineOpen(false);
+    setFilledSlots((prev) => new Set(prev).add(activeSlot));
+  };
+
   const totalProgress = filledSlots.size;
   const activeLayer = layers.find((l) => l.id === activeLayerId);
 
@@ -545,11 +589,76 @@ export default function EditorPage() {
           <button onClick={redo} className="btn btn-ghost btn-sm" disabled={!history.current.canRedo()}>
             ↷
           </button>
+          <button
+            onClick={() => setOutlineOpen(true)}
+            className="btn btn-accent btn-sm"
+            title="활성 레이어에 두꺼운 흰색(또는 컬러) 외곽선 자동 추가"
+          >
+            🖼️ 테두리
+          </button>
           <button onClick={aiSuggest} className="btn btn-secondary btn-sm">
             🤖 AI 보정
           </button>
         </div>
       </div>
+
+      {outlineOpen && (
+        <div className="modal modal-open" onClick={() => setOutlineOpen(false)}>
+          <div className="modal-box max-w-md" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold">🖼️ 테두리 적용</h3>
+            <p className="text-xs text-base-content/60">
+              활성 레이어 ({activeLayer?.name})의 알파 외곽을 두께만큼 팽창시켜 단색 테두리를 합성해요.
+              카카오 이모티콘은 외부폭 4px 흰 테두리가 표준이에요.
+            </p>
+
+            <label className="mt-4 block text-sm">
+              두께 <span className="font-bold">{outlineThickness}px</span>
+              <input
+                type="range"
+                min={1}
+                max={20}
+                value={outlineThickness}
+                onChange={(e) => setOutlineThickness(Number(e.target.value))}
+                className="range range-primary range-sm w-full"
+              />
+              <div className="flex justify-between text-[10px] text-base-content/50">
+                <span>1</span>
+                <span>4 (카카오 권장)</span>
+                <span>20</span>
+              </div>
+            </label>
+
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="text-sm">색</span>
+              {["#FFFFFF", "#000000", "#FF5C8A", "#FFD166", "#9C7BFF"].map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setOutlineColor(c)}
+                  className={`h-8 w-8 rounded-full border-2 ${
+                    outlineColor === c ? "border-primary" : "border-base-300"
+                  }`}
+                  style={{ backgroundColor: c }}
+                />
+              ))}
+              <input
+                type="color"
+                value={outlineColor}
+                onChange={(e) => setOutlineColor(e.target.value)}
+                className="h-8 w-8 cursor-pointer rounded-full border-2 border-base-300"
+              />
+            </div>
+
+            <div className="modal-action">
+              <button onClick={() => setOutlineOpen(false)} className="btn btn-ghost">
+                취소
+              </button>
+              <button onClick={applyOutlineToActiveLayer} className="btn btn-primary">
+                적용
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {!user && (
         <div className="alert alert-warning text-sm">
