@@ -9,7 +9,7 @@ export default function HomePage() {
         <div className="hero-content text-center">
           <div className="max-w-2xl">
             <span className="badge badge-warning mb-4 gap-1">
-              💎 가입 시 무료 50 크레딧
+              💎 가입 시 무료 5 크레딧 (시드 1장 체험)
             </span>
             <h1 className="text-4xl font-bold leading-tight md:text-5xl">
               한 줄로 32장
@@ -56,8 +56,42 @@ export default function HomePage() {
           <FeatureCard
             emoji="💰"
             title="수익화 허브"
-            desc="21개 플랫폼 사양·수수료·심사기간을 한 화면에. 신청 딥링크로 바로 이동."
+            desc={`${PLATFORMS.length}개 플랫폼 사양·수수료·심사기간을 한 화면에. 신청 딥링크로 바로 이동.`}
             href="/marketplace"
+          />
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-base-300 bg-base-100 p-6">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h2 className="text-2xl font-bold">🛠️ 회원가입 없이 바로 쓰는 도구함</h2>
+            <p className="mt-1 text-sm text-base-content/70">
+              이미 만든 PNG가 있다면 바로 활용할 수 있는 보조 도구. 모두 브라우저에서만 동작해요.
+            </p>
+          </div>
+          <Link href="/tools" className="btn btn-ghost btn-sm">
+            전체 도구 보기 →
+          </Link>
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <ToolCard
+            href="/tools/outline"
+            emoji="🎨"
+            title="흰색 테두리 생성기"
+            desc="투명 PNG에 흰 테두리 자동 추가. 두께·색·영역 조절 가능, 거리 변환 기반이라 큰 이미지도 즉시."
+          />
+          <ToolCard
+            href="/tools/resize"
+            emoji="📐"
+            title="사이즈 자동 변환기"
+            desc="카카오 360 / 큰 540 / 미니 180, OGQ 740×640, LINE 스티커·이모티콘, Etsy, 비트윈 512 등 9개 플랫폼 규격으로 한 번에 ZIP 변환."
+          />
+          <ToolCard
+            href="/resources"
+            emoji="📚"
+            title="작가 자료 큐레이션"
+            desc="표정 가이드 9종, 도장 브러시, 자세 9종 브러시, 합격 캔버스 PDF — 한 자리에서."
           />
         </div>
       </section>
@@ -176,6 +210,33 @@ function FeatureCard({
         <div className="text-4xl">{emoji}</div>
         <h3 className="card-title text-lg">{title}</h3>
         <p className="text-sm text-base-content/70">{desc}</p>
+      </div>
+    </Link>
+  );
+}
+
+function ToolCard({
+  href,
+  emoji,
+  title,
+  desc,
+}: {
+  href: string;
+  emoji: string;
+  title: string;
+  desc: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="card border border-base-300 bg-base-200 transition hover:border-primary hover:bg-base-100"
+    >
+      <div className="card-body p-4">
+        <div className="flex items-center gap-2">
+          <span className="text-2xl">{emoji}</span>
+          <h3 className="font-bold">{title}</h3>
+        </div>
+        <p className="text-xs text-base-content/70">{desc}</p>
       </div>
     </Link>
   );

@@ -59,7 +59,7 @@ function normalizeProfile(uid: string, data: DocumentData | undefined, user: Use
     displayName:
       typeof data?.displayName === "string" ? data.displayName : user.displayName,
     photoURL: typeof data?.photoURL === "string" ? data.photoURL : user.photoURL,
-    credits: typeof data?.credits === "number" ? data.credits : 50,
+    credits: typeof data?.credits === "number" ? data.credits : 5,
   };
 }
 
@@ -75,7 +75,7 @@ async function ensureUserDocument(user: User) {
       email: user.email ?? "",
       displayName: user.displayName ?? "",
       photoURL: user.photoURL ?? "",
-      credits: 50,
+      credits: 5,
       createdAt: serverTimestamp(),
       lastActiveAt: serverTimestamp(),
     });

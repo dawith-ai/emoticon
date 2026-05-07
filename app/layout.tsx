@@ -32,13 +32,13 @@ export const metadata: Metadata = {
     locale: "ko_KR",
     title: "VibeMoji — 한 줄로 32장 이모티콘",
     description:
-      "자연어로 캐릭터 만들고 카카오·OGQ·라인·Etsy 21개 플랫폼에 한 번에 등록하세요.",
+      "자연어로 캐릭터 만들고 카카오·OGQ·라인·Etsy 25개 플랫폼에 한 번에 등록하세요.",
     images: [{ url: "/og-image.svg", width: 1200, height: 630, alt: "VibeMoji" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "VibeMoji — 한 줄로 32장 이모티콘",
-    description: "자연어로 캐릭터 만들고 21개 플랫폼 자동 변환",
+    description: "자연어로 캐릭터 만들고 25개 플랫폼 자동 변환",
     images: ["/og-image.svg"],
   },
   alternates: { canonical: "/" },

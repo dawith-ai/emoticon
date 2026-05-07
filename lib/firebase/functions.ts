@@ -41,16 +41,21 @@ export async function callFunction<TReq, TRes>(
 export type GenerateSeedReq = {
   projectId: string;
   characterDescription: string;
+  /** BYOK — 사용자 본인 Gemini 키. 있으면 크레딧 차감 안 함. */
+  byokApiKey?: string;
 };
-export type GenerateSeedRes = { ok: boolean; seedPath: string };
+export type GenerateSeedRes = { ok: boolean; seedPath: string; byok?: boolean };
 
 export type GenerateSetReq = {
   projectId: string;
   emotions: Array<{ slot: number; label: string; action: string }>;
+  /** BYOK — 본인 키로 호출 시 크레딧 차감 없음 */
+  byokApiKey?: string;
 };
 export type GenerateSetRes = {
   ok: boolean;
   successCount: number;
+  byok?: boolean;
   results: Array<{
     slot: number;
     ok: boolean;

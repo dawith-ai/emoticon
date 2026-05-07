@@ -24,7 +24,7 @@ service cloud.firestore {
       allow read: if isOwner(userId) || isAdmin();
       // 가입 시 생성은 Cloud Function이 담당. 클라이언트는 displayName/photoURL만 갱신
       allow create: if isOwner(userId)
-                    && request.resource.data.credits == 50  // 무료 50 크레딧
+                    && request.resource.data.credits == 5  // 무료 5 크레딧 (시드 1장 체험)
                     && request.resource.data.email is string;
       allow update: if isOwner(userId)
                     && (!('credits' in request.resource.data)

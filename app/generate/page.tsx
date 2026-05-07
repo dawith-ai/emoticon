@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   addDoc,
@@ -13,6 +13,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { getClientDb } from "@/lib/firebase/client";
 import { generateSeedCharacter, generateStickerSet } from "@/lib/firebase/functions";
 import { EMOTION_SLOTS_32 } from "@/lib/platforms";
+import { getActiveByokKey, getByok, maskKey } from "@/lib/byok";
 
 type Step = "input" | "seed" | "set" | "done";
 type CallMode = "mock" | "real";
@@ -41,6 +42,20 @@ export default function GeneratePage() {
     "idle"
   );
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [byokInfo, setByokInfo] = useState<{ key: string; consented: boolean }>({
+    key: "",
+    consented: false,
+  });
+  const [useByok, setUseByok] = useState(false);
+
+  useEffect(() => {
+    const s = getByok();
+    setByokInfo(s);
+    setUseByok(Boolean(s.key && s.consented));
+  }, []);
+
+  const byokAvailable = Boolean(byokInfo.key && byokInfo.consented);
+  const byokPayload = useByok ? getActiveByokKey() : undefined;
 
   const log = (line: string) => {
     setCallLog((prev) => [...prev.slice(-30), `[${new Date().toLocaleTimeString()}] ${line}`]);
@@ -96,10 +111,11 @@ export default function GeneratePage() {
         setCallError("실호출 모드는 로그인 + Firestore 초안 저장 후에만 동작해요.");
         return;
       }
-      log("generateSeedCharacter 호출 시작");
+      log(`generateSeedCharacter 호출 시작${byokPayload ? " (BYOK)" : ""}`);
       const result = await generateSeedCharacter({
         projectId: projectIdRef.current,
         characterDescription: prompt,
+        byokApiKey: byokPayload,
       });
       if (result.ok) {
         log(`✅ 시드 생성 완료 — ${result.data.seedPath}`);
@@ -116,7 +132,7 @@ export default function GeneratePage() {
     await saveDraft("set", 0);
 
     if (callMode === "real" && user && projectIdRef.current) {
-      log("generateStickerSet 호출 시작 (32 슬롯)");
+      log(`generateStickerSet 호출 시작 (32 슬롯)${byokPayload ? " (BYOK)" : ""}`);
       const emotions = EMOTION_SLOTS_32.map((label, idx) => ({
         slot: idx + 1,
         label,
@@ -125,6 +141,7 @@ export default function GeneratePage() {
       const result = await generateStickerSet({
         projectId: projectIdRef.current,
         emotions,
+        byokApiKey: byokPayload,
       });
       if (result.ok) {
         setGenerated(
@@ -202,10 +219,43 @@ export default function GeneratePage() {
             </Link>
           </div>
           {callMode === "real" && (
-            <p className="mt-1 text-xs text-base-content/60">
-              실제 모드는 시드 5💎 + 세트 100💎가 차감되고 Nano Banana로 32장이 생성돼요.
-              Functions 미배포 시 not-found 에러가 떨어집니다.
-            </p>
+            <>
+              <p className="mt-1 text-xs text-base-content/60">
+                실제 모드는 시드 5💎 + 세트 100💎가 차감되고 Nano Banana로 32장이 생성돼요.
+                Functions 미배포 시 not-found 에러가 떨어집니다.
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-base-200 p-2 text-xs">
+                <span className="font-bold">🔑 키 모드</span>
+                {byokAvailable ? (
+                  <>
+                    <button
+                      onClick={() => setUseByok(true)}
+                      className={`btn btn-xs ${useByok ? "btn-primary" : "btn-ghost"}`}
+                    >
+                      내 키 (BYOK · 무제한)
+                    </button>
+                    <button
+                      onClick={() => setUseByok(false)}
+                      className={`btn btn-xs ${!useByok ? "btn-primary" : "btn-ghost"}`}
+                    >
+                      운영자 키 + 크레딧
+                    </button>
+                    <span className="ml-auto text-base-content/60">
+                      {useByok ? `BYOK: ${maskKey(byokInfo.key)}` : "크레딧 차감 모드"}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-base-content/60">
+                      운영자 키 + 크레딧 모드 (BYOK 미등록)
+                    </span>
+                    <Link href="/settings" className="btn btn-xs btn-outline ml-auto">
+                      🔑 내 키 등록하기
+                    </Link>
+                  </>
+                )}
+              </div>
+            </>
           )}
           {callError && (
             <div className="alert alert-error mt-2 text-xs">

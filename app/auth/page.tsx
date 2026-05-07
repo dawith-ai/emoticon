@@ -98,7 +98,7 @@ export default function AuthPage() {
         <form onSubmit={onSubmit} className="card-body">
           <h1 className="card-title">{title}</h1>
           <p className="text-sm text-base-content/70">
-            가입하면 Firestore 사용자 문서와 무료 50 크레딧이 준비됩니다.
+            가입하면 Firestore 사용자 문서와 무료 5 크레딧(시드 1장 체험)이 준비됩니다.
           </p>
           {mode === "signup" && (
             <label className="form-control">

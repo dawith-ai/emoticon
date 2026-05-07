@@ -12,12 +12,25 @@ const SET_COST = 100;
 type GenerateSeedRequest = {
   projectId: string;
   characterDescription: string;
+  /** BYOK — 사용자가 본인 Gemini 키를 보내면 그걸로 호출하고 크레딧 차감 안 함 */
+  byokApiKey?: string;
 };
 
 type GenerateSetRequest = {
   projectId: string;
   emotions: Array<{ slot: number; label: string; action: string }>;
+  /** BYOK — 본인 키로 호출 시 크레딧 차감 없음 */
+  byokApiKey?: string;
 };
+
+/**
+ * 사용자 키 형식 가벼운 검증.
+ * Google AI Studio 키는 `AIza`로 시작하는 39자 문자열.
+ * 부적합한 입력으로 SDK가 무의미한 에러를 띄우는 것을 방지.
+ */
+function isValidByokKey(key: string | undefined): key is string {
+  return typeof key === "string" && /^AIza[A-Za-z0-9_-]{30,}$/.test(key.trim());
+}
 
 /**
  * 자연어 → 시드 캐릭터 1장 생성.
@@ -29,26 +42,34 @@ export const generateSeedCharacter = onCall(
     const userId = req.auth?.uid;
     if (!userId) throw new HttpsError("unauthenticated", "로그인이 필요해요");
 
-    const { projectId, characterDescription } = req.data as GenerateSeedRequest;
+    const { projectId, characterDescription, byokApiKey } = req.data as GenerateSeedRequest;
     if (!projectId || !characterDescription) {
       throw new HttpsError("invalid-argument", "projectId, characterDescription 필수");
     }
 
+    const useBYOK = isValidByokKey(byokApiKey);
     const db = getFirestore();
     const userRef = db.collection("users").doc(userId);
 
-    // 트랜잭션으로 크레딧 차감
-    await db.runTransaction(async (tx) => {
-      const userSnap = await tx.get(userRef);
-      const credits = (userSnap.data()?.credits ?? 0) as number;
-      if (credits < SEED_COST) {
-        throw new HttpsError("failed-precondition", `크레딧 부족 (필요 ${SEED_COST}, 보유 ${credits})`);
-      }
-      tx.update(userRef, { credits: credits - SEED_COST });
-    });
+    // BYOK가 아니면 크레딧 차감
+    if (!useBYOK) {
+      await db.runTransaction(async (tx) => {
+        const userSnap = await tx.get(userRef);
+        const credits = (userSnap.data()?.credits ?? 0) as number;
+        if (credits < SEED_COST) {
+          throw new HttpsError(
+            "failed-precondition",
+            `크레딧 부족 (필요 ${SEED_COST}, 보유 ${credits}). 설정에서 본인 Gemini 키를 등록해 무제한 사용도 가능해요.`
+          );
+        }
+        tx.update(userRef, { credits: credits - SEED_COST });
+      });
+    }
 
-    // Nano Banana 호출
-    const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY.value() });
+    // Nano Banana 호출 — BYOK 우선, 없으면 운영자 키
+    const ai = new GoogleGenAI({
+      apiKey: useBYOK ? byokApiKey!.trim() : GEMINI_API_KEY.value(),
+    });
     const prompt = buildSeedPrompt(characterDescription);
 
     const response = await ai.models.generateContent({
@@ -58,9 +79,11 @@ export const generateSeedCharacter = onCall(
 
     const imageBase64 = extractImage(response);
     if (!imageBase64) {
-      // 실패 시 크레딧 환불
-      await userRef.update({ credits: (await userRef.get()).data()?.credits + SEED_COST });
-      throw new HttpsError("internal", "이미지 생성 실패. 크레딧 환불됨");
+      if (!useBYOK) {
+        await userRef.update({ credits: (await userRef.get()).data()?.credits + SEED_COST });
+        throw new HttpsError("internal", "이미지 생성 실패. 크레딧 환불됨");
+      }
+      throw new HttpsError("internal", "이미지 생성 실패 (BYOK)");
     }
 
     // Storage 저장
@@ -87,18 +110,20 @@ export const generateSeedCharacter = onCall(
         { merge: true }
       );
 
-    // 크레딧 거래 기록
+    // 크레딧 거래 기록 — BYOK는 0 크레딧으로 audit만 남김
     await db.collection("credits").doc("transactions").collection("items").add({
       userId,
-      amount: -SEED_COST,
-      type: "consume",
-      note: `시드 생성 (project ${projectId})`,
+      amount: useBYOK ? 0 : -SEED_COST,
+      type: useBYOK ? "byok" : "consume",
+      note: useBYOK
+        ? `시드 생성 — BYOK (project ${projectId})`
+        : `시드 생성 (project ${projectId})`,
       relatedProjectId: projectId,
       createdAt: new Date(),
     });
 
-    logger.info(`시드 생성 완료: ${userId}/${projectId}`);
-    return { ok: true, seedPath: path };
+    logger.info(`시드 생성 완료: ${userId}/${projectId} byok=${useBYOK}`);
+    return { ok: true, seedPath: path, byok: useBYOK };
   }
 );
 
@@ -114,11 +139,12 @@ export const generateStickerSet = onCall(
     const userId = req.auth?.uid;
     if (!userId) throw new HttpsError("unauthenticated", "로그인 필요");
 
-    const { projectId, emotions } = req.data as GenerateSetRequest;
+    const { projectId, emotions, byokApiKey } = req.data as GenerateSetRequest;
     if (!projectId || !emotions || emotions.length === 0) {
       throw new HttpsError("invalid-argument", "projectId, emotions 필수");
     }
 
+    const useBYOK = isValidByokKey(byokApiKey);
     const db = getFirestore();
     const userRef = db.collection("users").doc(userId);
     const projectRef = userRef.collection("projects").doc(projectId);
@@ -128,21 +154,28 @@ export const generateStickerSet = onCall(
     const seedPath = projectSnap.data()?.seedPath;
     if (!seedPath) throw new HttpsError("failed-precondition", "시드가 없음");
 
-    // 크레딧 차감
-    await db.runTransaction(async (tx) => {
-      const userSnap = await tx.get(userRef);
-      const credits = (userSnap.data()?.credits ?? 0) as number;
-      if (credits < SET_COST) {
-        throw new HttpsError("failed-precondition", `크레딧 부족 (필요 ${SET_COST}, 보유 ${credits})`);
-      }
-      tx.update(userRef, { credits: credits - SET_COST });
-    });
+    // BYOK가 아니면 크레딧 차감
+    if (!useBYOK) {
+      await db.runTransaction(async (tx) => {
+        const userSnap = await tx.get(userRef);
+        const credits = (userSnap.data()?.credits ?? 0) as number;
+        if (credits < SET_COST) {
+          throw new HttpsError(
+            "failed-precondition",
+            `크레딧 부족 (필요 ${SET_COST}, 보유 ${credits}). 설정에서 본인 Gemini 키를 등록해 무제한 사용도 가능해요.`
+          );
+        }
+        tx.update(userRef, { credits: credits - SET_COST });
+      });
+    }
 
     // 시드 이미지 다운로드
     const bucket = getStorage().bucket();
     const [seedBuffer] = await bucket.file(seedPath).download();
 
-    const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY.value() });
+    const ai = new GoogleGenAI({
+      apiKey: useBYOK ? byokApiKey!.trim() : GEMINI_API_KEY.value(),
+    });
     const results: { slot: number; ok: boolean; path?: string; error?: string }[] = [];
 
     // 동시 4개씩 생성
@@ -206,18 +239,22 @@ export const generateStickerSet = onCall(
       updatedAt: new Date(),
     });
 
-    // 거래 기록
+    // 거래 기록 — BYOK는 0 크레딧으로 audit만 남김
     await db.collection("credits").doc("transactions").collection("items").add({
       userId,
-      amount: -SET_COST,
-      type: "consume",
-      note: `32종 세트 생성 (${successCount}/${emotions.length} 성공)`,
+      amount: useBYOK ? 0 : -SET_COST,
+      type: useBYOK ? "byok" : "consume",
+      note: useBYOK
+        ? `세트 생성 — BYOK (${successCount}/${emotions.length} 성공)`
+        : `32종 세트 생성 (${successCount}/${emotions.length} 성공)`,
       relatedProjectId: projectId,
       createdAt: new Date(),
     });
 
-    logger.info(`세트 생성: ${userId}/${projectId} ${successCount}/${emotions.length}`);
-    return { ok: true, results, successCount };
+    logger.info(
+      `세트 생성: ${userId}/${projectId} ${successCount}/${emotions.length} byok=${useBYOK}`
+    );
+    return { ok: true, results, successCount, byok: useBYOK };
   }
 );
 

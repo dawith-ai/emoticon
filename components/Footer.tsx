@@ -10,7 +10,21 @@ export function Footer() {
             <span className="text-vm-grad">VibeMoji</span>
           </div>
           <p className="mt-2 text-xs">
-            한 줄로 32장 이모티콘. 카카오 · OGQ · LINE · Etsy 21개 플랫폼 자동 변환.
+            한 줄로 32장 이모티콘. 카카오 · OGQ · LINE · 비트윈 · Etsy 25개 플랫폼 자동 변환.
+          </p>
+          <p className="mt-1 text-xs">
+            도구함 ·{" "}
+            <Link href="/tools/outline" className="link link-hover">
+              테두리 생성기
+            </Link>{" "}
+            ·{" "}
+            <Link href="/tools/resize" className="link link-hover">
+              사이즈 변환기
+            </Link>{" "}
+            ·{" "}
+            <Link href="/resources" className="link link-hover">
+              작가 자료 큐레이션
+            </Link>
           </p>
           <p className="mt-1 text-xs">
             © 2026 VibeMoji · 모든 캐릭터의 저작권은 창작자에게 귀속돼요

@@ -6,7 +6,20 @@ const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://myjun090-spec.gith
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
-  const routes = ["", "/generate", "/editor", "/marketplace", "/auth", "/privacy", "/terms"];
+  const routes = [
+    "",
+    "/generate",
+    "/editor",
+    "/marketplace",
+    "/tools",
+    "/tools/outline",
+    "/tools/resize",
+    "/resources",
+    "/settings",
+    "/auth",
+    "/privacy",
+    "/terms",
+  ];
   return routes.map((path) => ({
     url: `${BASE_URL}${path}`,
     lastModified: now,

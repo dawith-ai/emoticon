@@ -752,6 +752,13 @@ export default function EditorPage() {
                   />
                   <span>{Math.round(traceOpacity * 100)}%</span>
                   <button
+                    onClick={() => setTraceOpacity(0.3)}
+                    className="btn btn-ghost btn-xs"
+                    title="동동 작가 권장값 — 가이드는 30%가 적당"
+                  >
+                    30% 권장
+                  </button>
+                  <button
                     onClick={() => {
                       traceImageRef.current = null;
                       setHasTraceImage(false);
