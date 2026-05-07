@@ -18,10 +18,16 @@ import {
 } from "@/lib/emotions";
 import {
   getProvider,
-  listProviders,
   makeThrottle,
   type AIProviderId,
 } from "@/lib/ai";
+import {
+  getByok,
+  isValidGeminiKey,
+  maskKey,
+  setByok,
+  clearByok,
+} from "@/lib/byok";
 
 type Step = "input" | "seed" | "set" | "done";
 
@@ -52,12 +58,28 @@ export default function GeneratePage() {
   const [error, setError] = useState<string | null>(null);
   const [log, setLog] = useState<string[]>([]);
 
+  // BYOK 인라인
+  const [byokInput, setByokInput] = useState("");
+  const [byokState, setByokStateLocal] = useState<{ hasKey: boolean; masked: string }>({
+    hasKey: false,
+    masked: "",
+  });
+  const refreshByokView = () => {
+    const { key, consented } = getByok();
+    setByokStateLocal({
+      hasKey: !!key && consented && isValidGeminiKey(key),
+      masked: key ? maskKey(key) : "",
+    });
+  };
+  useEffect(() => {
+    refreshByokView();
+  }, []);
+
   const projectIdRef = useRef<string | null>(null);
   const cancelRef = useRef(false);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
-  // 새로 unmount/모드 변경 시 blob URL 정리
   useEffect(() => {
     return () => {
       if (seed?.url) URL.revokeObjectURL(seed.url);
@@ -66,12 +88,31 @@ export default function GeneratePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const providers = listProviders();
-  const activeProvider = providerId === "mock" ? null : getProvider(providerId);
-  const providerReady = providerId === "mock" ? true : !!activeProvider?.isReady();
+  const activeProvider = getProvider(providerId);
+  const providerReady = !!activeProvider?.isReady();
 
   const addLog = (line: string) => {
     setLog((prev) => [...prev.slice(-40), `[${new Date().toLocaleTimeString()}] ${line}`]);
+  };
+
+  const saveByokInline = () => {
+    const trimmed = byokInput.trim();
+    if (!isValidGeminiKey(trimmed)) {
+      setError("Gemini 키 형식이 올바르지 않아요. 'AIza' 로 시작하는 39자 이상이어야 해요.");
+      return;
+    }
+    setByok(trimmed, true);
+    setByokInput("");
+    setError(null);
+    refreshByokView();
+    setProviderId("gemini");
+    addLog("🔑 Gemini 키 등록 완료");
+  };
+
+  const removeByok = () => {
+    clearByok();
+    refreshByokView();
+    addLog("🗑 Gemini 키 삭제");
   };
 
   const saveDraft = async (status: string) => {
@@ -106,17 +147,11 @@ export default function GeneratePage() {
   };
 
   const generateSeed = async () => {
-    if (providerId === "mock") {
-      // mock — 그냥 step 전환, 시드 placeholder
-      setStep("seed");
-      void saveDraft("mock_seed");
-      return;
-    }
     if (!activeProvider) return;
     if (!activeProvider.isReady()) {
       setError(
         activeProvider.auth === "byok-required"
-          ? "Gemini 키가 없어요. /settings에서 BYOK 키를 등록한 뒤 다시 시도해주세요."
+          ? "Gemini 키가 없어요. 위 입력란에 붙여넣어 주세요. (1분 안에 받을 수 있어요)"
           : `${activeProvider.label} 사용 가능 상태가 아니에요.`
       );
       return;
@@ -130,8 +165,8 @@ export default function GeneratePage() {
     try {
       const blob = await activeProvider.generate({
         prompt: buildSeedPrompt(prompt),
-        width: 512,
-        height: 512,
+        width: 1024,
+        height: 1024,
         seed: hashSeed(prompt),
         label: "seed",
       });
@@ -153,33 +188,6 @@ export default function GeneratePage() {
   };
 
   const generateAll = async () => {
-    if (providerId === "mock") {
-      // mock 진행 애니메이션 — 32 placeholder
-      setStep("set");
-      void saveDraft("mock_set_progress");
-      const placeholders: SlotResult[] = EMOTIONS_32.map((e) => ({
-        slot: e.slot,
-        label: e.label,
-      }));
-      setVariants(placeholders);
-      let i = 0;
-      const tick = () => {
-        if (i >= 32) {
-          setStep("done");
-          void saveDraft("mock_done");
-          return;
-        }
-        const next = i + 1;
-        setVariants((prev) =>
-          prev.map((v, k) => (k < next ? { ...v, blob: undefined, url: "MOCK" } : v))
-        );
-        i = next;
-        setTimeout(tick, 80);
-      };
-      tick();
-      return;
-    }
-
     if (!activeProvider || !seed) return;
 
     setBusy({ phase: "variant", slot: 0, total: 32 });
@@ -211,8 +219,8 @@ export default function GeneratePage() {
         );
         const blob = await activeProvider.generate({
           prompt: variantPrompt,
-          width: 512,
-          height: 512,
+          width: 1024,
+          height: 1024,
           seed: hashSeed(prompt) + emotion.slot,
           referenceBlob: activeProvider.supportsReference ? seed.blob : undefined,
           label: emotion.label,
@@ -245,7 +253,7 @@ export default function GeneratePage() {
 
   const reset = () => {
     if (seed?.url) URL.revokeObjectURL(seed.url);
-    variants.forEach((v) => v.url && v.url !== "MOCK" && URL.revokeObjectURL(v.url));
+    variants.forEach((v) => v.url && URL.revokeObjectURL(v.url));
     setSeed(null);
     setVariants([]);
     setStep("input");
@@ -256,7 +264,7 @@ export default function GeneratePage() {
   };
 
   const downloadOne = (v: SlotResult) => {
-    if (!v.blob || !v.url || v.url === "MOCK") return;
+    if (!v.blob || !v.url) return;
     const a = document.createElement("a");
     a.href = v.url;
     a.download = `${prompt.slice(0, 20).replace(/\s+/g, "_")}_${String(v.slot).padStart(2, "0")}_${v.label}.png`;
@@ -290,45 +298,88 @@ export default function GeneratePage() {
         <Stepper current={step} />
       </div>
 
+      {/* 품질 비교 안내 */}
+      <div className="alert text-xs">
+        💡 <span className="font-bold">퀄리티 가이드:</span>{" "}
+        🌸 <strong>Pollinations</strong> = 무료 즉시, 미리보기/연습용 ·
+        ✨ <strong>Gemini (BYOK)</strong> = 무료 키 1분 발급, <strong>카카오 심사 통과 가능 수준</strong>
+      </div>
+
       {/* Provider 선택 */}
       <div className="card border border-base-300 bg-base-100">
-        <div className="card-body p-3">
+        <div className="card-body p-4">
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="font-bold">AI 모델</span>
             <button
               onClick={() => setProviderId("pollinations")}
-              className={`btn btn-xs ${providerId === "pollinations" ? "btn-primary" : "btn-ghost"}`}
+              className={`btn btn-sm ${providerId === "pollinations" ? "btn-primary" : "btn-ghost"}`}
             >
-              🌸 Pollinations (즉시·무료)
+              🌸 Pollinations
             </button>
             <button
               onClick={() => setProviderId("gemini")}
-              className={`btn btn-xs ${providerId === "gemini" ? "btn-primary" : "btn-ghost"}`}
+              className={`btn btn-sm ${providerId === "gemini" ? "btn-primary" : "btn-ghost"}`}
             >
-              ✨ Gemini (BYOK·무료티어)
+              ✨ Gemini {byokState.hasKey ? "(키 등록됨)" : "(BYOK 필요)"}
             </button>
-            <button
-              onClick={() => setProviderId("mock")}
-              className={`btn btn-xs ${providerId === "mock" ? "btn-primary" : "btn-ghost"}`}
-            >
-              🎭 Mock
-            </button>
-            <Link href="/settings" className="link link-primary ml-auto text-xs">
-              ⚙️ BYOK 설정
-            </Link>
           </div>
-          <p className="mt-1 text-xs text-base-content/60">
-            {activeProvider?.description ??
-              "Mock — 실제 호출 없이 UI만 시뮬레이션"}
+          <p className="mt-2 text-xs text-base-content/60">
+            {activeProvider?.description ?? ""}
           </p>
-          {providerId === "gemini" && !providerReady && (
-            <div className="alert alert-warning mt-2 text-xs">
-              ⚠️ Gemini 키가 없어요. <Link href="/settings" className="link">/settings</Link>에서 BYOK 키를 등록하면 즉시 사용 가능해요. (Google AI Studio 무료 키 OK)
+
+          {/* Gemini 미준비 시 인라인 BYOK 가이드 */}
+          {providerId === "gemini" && !byokState.hasKey && (
+            <div className="mt-3 rounded-lg border border-primary/40 bg-primary/5 p-3">
+              <h3 className="text-sm font-bold">🔑 1분 만에 무료 키 받기</h3>
+              <ol className="mt-1 list-decimal pl-5 text-xs leading-relaxed">
+                <li>
+                  <a
+                    href="https://aistudio.google.com/apikey"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="link link-primary"
+                  >
+                    Google AI Studio
+                  </a>
+                  에 들어가서 [Create API key] 클릭
+                </li>
+                <li>키 복사 (AIza... 로 시작)</li>
+                <li>아래 입력란에 붙여넣기 + 저장</li>
+              </ol>
+              <div className="mt-2 grid gap-2 md:grid-cols-[1fr_auto]">
+                <input
+                  type="password"
+                  value={byokInput}
+                  onChange={(e) => setByokInput(e.target.value)}
+                  placeholder="AIza..."
+                  className="input input-bordered input-sm w-full font-mono"
+                />
+                <button onClick={saveByokInline} className="btn btn-primary btn-sm">
+                  키 저장 + 사용
+                </button>
+              </div>
+              <p className="mt-1 text-[10px] text-base-content/60">
+                🔒 키는 <strong>당신 브라우저 localStorage에만</strong> 저장돼요. 서버에 안 보내고, 호출도 브라우저 → Google 직접.
+              </p>
             </div>
           )}
-          {!activeProvider?.supportsReference && providerId !== "mock" && (
-            <div className="alert text-xs">
-              ℹ️ {activeProvider?.label}는 reference image 미지원이라 32장 캐릭터 일관성이 약할 수 있어요. 디테일이 적은 캐릭터에 유리해요.
+
+          {providerId === "gemini" && byokState.hasKey && (
+            <div className="mt-2 flex items-center gap-2 text-xs">
+              <span className="badge badge-success badge-sm">✓ 키 등록됨</span>
+              <code className="opacity-70">{byokState.masked}</code>
+              <button onClick={removeByok} className="btn btn-ghost btn-xs ml-auto">
+                키 삭제
+              </button>
+              <Link href="/settings" className="link link-primary">
+                ⚙️ 상세 설정
+              </Link>
+            </div>
+          )}
+
+          {!activeProvider?.supportsReference && (
+            <div className="alert mt-2 text-xs">
+              ℹ️ {activeProvider?.label}는 reference image 미지원 — 32장이 매번 조금씩 다르게 그려질 수 있어요. 같은 캐릭터로 일관되게 32장이 필요하면 Gemini 사용.
             </div>
           )}
           {error && (
@@ -377,9 +428,7 @@ export default function GeneratePage() {
             </div>
             <div className="mt-3 flex items-center justify-between">
               <p className="text-xs text-base-content/60">
-                {providerId === "mock"
-                  ? "Mock 모드 — 실제 호출 없음"
-                  : `시드 1장 호출 (${activeProvider?.cost.freeNote ?? ""})`}
+                시드 1장 호출 ({activeProvider?.cost.freeNote ?? ""})
               </p>
               <button
                 onClick={generateSeed}
@@ -393,29 +442,23 @@ export default function GeneratePage() {
         </div>
       )}
 
-      {/* Step: seed (mock placeholder OR real image) */}
+      {/* Step: seed */}
       {step === "seed" && (
         <div className="card border border-base-300 bg-base-100">
           <div className="card-body">
             <h2 className="card-title">시드 캐릭터</h2>
             <p className="text-sm text-base-content/70">
-              {providerId === "mock"
-                ? "Mock 모드 — placeholder. 실제 모델로 바꾸려면 위에서 Pollinations 또는 Gemini 선택."
-                : activeProvider?.supportsReference
-                  ? "이 시드를 reference로 32장 변형을 생성해요. 마음에 들 때까지 재생성하세요."
-                  : "이 시드 컨셉으로 32장 변형을 생성해요. (Reference 미지원이라 동일 캐릭터 보장은 어려움)"}
+              {activeProvider?.supportsReference
+                ? "이 시드를 reference로 32장 변형을 생성해요. 마음에 들 때까지 재생성하세요."
+                : "이 시드 컨셉으로 32장 변형을 생성해요. (Reference 미지원이라 동일 캐릭터 보장은 어려움)"}
             </p>
             <div className="mt-4 flex justify-center">
-              {seed && providerId !== "mock" ? (
+              {seed ? (
                 <img
                   src={seed.url}
                   alt="seed"
                   className="h-64 w-64 rounded-2xl bg-white object-contain shadow-lg"
                 />
-              ) : providerId === "mock" ? (
-                <div className="sticker-tile filled flex h-64 w-64 items-center justify-center text-7xl">
-                  🐰
-                </div>
               ) : busy?.phase === "seed" ? (
                 <div className="flex h-64 w-64 items-center justify-center">
                   <span className="loading loading-dots loading-lg" />
@@ -436,7 +479,7 @@ export default function GeneratePage() {
                 </button>
                 <button
                   onClick={generateAll}
-                  disabled={!!busy || (providerId !== "mock" && !seed)}
+                  disabled={!!busy || !seed}
                   className="btn btn-primary"
                 >
                   32종 생성하기 →
@@ -457,7 +500,7 @@ export default function GeneratePage() {
                   {step === "set" ? "생성 중..." : "✅ 완료"}
                 </h2>
                 <span className="badge badge-primary">
-                  {variants.filter((v) => v.blob || v.url === "MOCK").length} / 32
+                  {variants.filter((v) => v.blob).length} / 32
                 </span>
               </div>
               {busy?.phase === "variant" && (
@@ -471,32 +514,27 @@ export default function GeneratePage() {
                 <p className="text-xs text-base-content/60">
                   {providerId === "gemini"
                     ? "Gemini 무료 티어 호출 간격 6.5초. 32장 = 약 3-4분 소요."
-                    : providerId === "pollinations"
-                      ? "Pollinations 호출 간격 1초. 32장 = 약 1-2분 소요."
-                      : ""}
+                    : "Pollinations 호출 간격 1초. 32장 = 약 1-2분 소요."}
                 </p>
               )}
 
               <div className="mt-3 grid grid-cols-4 gap-2 md:grid-cols-8">
                 {EMOTIONS_32.map((e) => {
                   const v = variants.find((x) => x.slot === e.slot);
-                  const filled = v?.blob || v?.url === "MOCK";
                   return (
                     <div
                       key={e.slot}
-                      className={`sticker-tile relative flex flex-col items-center justify-center overflow-hidden ${filled ? "filled" : ""} ${v?.error ? "border-error" : ""}`}
+                      className={`sticker-tile relative flex flex-col items-center justify-center overflow-hidden ${v?.blob ? "filled" : ""} ${v?.error ? "border-error" : ""}`}
                       title={v?.error ?? `${e.slot}. ${e.label}`}
                       onClick={() => v?.blob && downloadOne(v)}
                       style={{ cursor: v?.blob ? "pointer" : "default" }}
                     >
-                      {v?.url && v.url !== "MOCK" ? (
+                      {v?.url ? (
                         <img
                           src={v.url}
                           alt={e.label}
                           className="h-full w-full object-contain"
                         />
-                      ) : v?.url === "MOCK" ? (
-                        <span className="text-3xl">🐰</span>
                       ) : v?.error ? (
                         <span className="text-xs text-error">실패</span>
                       ) : busy?.phase === "variant" && busy.slot === e.slot ? (
