@@ -4,17 +4,22 @@
  * 애니메이션 진행 상태/미리보기 카드.
  * - 진행률 표시
  * - 완료 시 video 미리보기 + MP4 다운로드 버튼
+ * - 카카오 규격 GIF(360x360, 24fps, 1초) 변환 버튼 + 진행률 + 미리보기
  */
 
+export type AnimateCardStatus =
+  | "idle"
+  | "uploading"
+  | "starting"
+  | "processing"
+  | "succeeded"
+  | "failed"
+  | "canceled";
+
+export type GifConvertStatus = "idle" | "converting" | "succeeded" | "failed";
+
 interface AnimateCardProps {
-  status:
-    | "idle"
-    | "uploading"
-    | "starting"
-    | "processing"
-    | "succeeded"
-    | "failed"
-    | "canceled";
+  status: AnimateCardStatus;
   progress: number | null; // 0~1
   attempt: number;
   videoUrl: string | null;
@@ -22,9 +27,17 @@ interface AnimateCardProps {
   onDownload: () => void;
   onCancel?: () => void;
   onReset?: () => void;
+  // GIF 변환 관련 (옵션 — 부모가 상태 관리)
+  gifStatus?: GifConvertStatus;
+  gifProgress?: number | null; // 0~1
+  gifUrl?: string | null;
+  gifBytes?: number | null;
+  gifError?: string | null;
+  onConvertGif?: () => void;
+  onDownloadGif?: () => void;
 }
 
-const STATUS_LABEL: Record<AnimateCardProps["status"], string> = {
+const STATUS_LABEL: Record<AnimateCardStatus, string> = {
   idle: "대기 중",
   uploading: "이미지 업로드 중",
   starting: "Replicate에 작업 등록 중",
@@ -33,6 +46,12 @@ const STATUS_LABEL: Record<AnimateCardProps["status"], string> = {
   failed: "실패",
   canceled: "취소됨",
 };
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(2)} MB`;
+}
 
 export function AnimateCard({
   status,
@@ -43,10 +62,22 @@ export function AnimateCard({
   onDownload,
   onCancel,
   onReset,
+  gifStatus = "idle",
+  gifProgress = null,
+  gifUrl = null,
+  gifBytes = null,
+  gifError = null,
+  onConvertGif,
+  onDownloadGif,
 }: AnimateCardProps) {
   const pct = progress != null ? Math.round(progress * 100) : null;
   const showSpinner =
     status === "uploading" || status === "starting" || status === "processing";
+
+  const gifPct =
+    gifProgress != null ? Math.round(gifProgress * 100) : null;
+  const gifConverting = gifStatus === "converting";
+  const gifDone = gifStatus === "succeeded" && gifUrl;
 
   return (
     <div className="card border border-base-300 bg-base-100">
@@ -82,7 +113,7 @@ export function AnimateCard({
         )}
 
         {status === "succeeded" && videoUrl && (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <video
               src={videoUrl}
               controls
@@ -100,6 +131,18 @@ export function AnimateCard({
               >
                 ⬇ MP4 다운로드
               </button>
+              {onConvertGif && !gifDone && (
+                <button
+                  type="button"
+                  onClick={onConvertGif}
+                  disabled={gifConverting}
+                  className="btn btn-secondary btn-sm"
+                >
+                  {gifConverting
+                    ? "🛠 변환 중…"
+                    : "🎁 카카오 GIF로 변환 (360x360 · 24fps · 1초)"}
+                </button>
+              )}
               {onReset && (
                 <button
                   type="button"
@@ -110,9 +153,66 @@ export function AnimateCard({
                 </button>
               )}
             </div>
+
+            {gifConverting && (
+              <div className="space-y-1">
+                <progress
+                  className="progress progress-secondary w-full"
+                  value={gifPct ?? undefined}
+                  max={100}
+                />
+                <p className="text-xs text-base-content/60">
+                  {gifPct != null ? `${gifPct}% · ` : ""}
+                  ffmpeg.wasm으로 GIF 인코딩 중… 첫 변환은 ~30MB wasm을 받느라
+                  10–30초 걸릴 수 있어요. 다음 변환부터는 빨라요.
+                </p>
+              </div>
+            )}
+
+            {gifStatus === "failed" && gifError && (
+              <p className="text-xs text-error">GIF 변환 실패: {gifError}</p>
+            )}
+
+            {gifDone && (
+              <div className="space-y-2 rounded-lg border border-secondary/40 bg-secondary/5 p-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium">
+                    🎁 카카오 규격 GIF 준비 완료
+                  </p>
+                  <span className="text-xs text-base-content/60">
+                    {gifBytes != null ? formatBytes(gifBytes) : ""}
+                  </span>
+                </div>
+                {/* 미리보기는 img 태그로 — 무한 루프 자동 재생 확인 가능 */}
+                <img
+                  src={gifUrl}
+                  alt="변환된 GIF 미리보기"
+                  className="mx-auto block max-h-72 rounded-md border border-base-300 bg-white"
+                />
+                <div className="flex flex-wrap gap-2">
+                  {onDownloadGif && (
+                    <button
+                      type="button"
+                      onClick={onDownloadGif}
+                      className="btn btn-secondary btn-sm"
+                    >
+                      ⬇ GIF 다운로드
+                    </button>
+                  )}
+                </div>
+                {gifBytes != null && gifBytes > 1024 * 1024 && (
+                  <p className="text-xs text-warning">
+                    ⚠ 카카오 권장 용량(1MB)을 넘었어요
+                    ({formatBytes(gifBytes)}). 필요하면 색상 수나 길이를
+                    줄이세요. 최대 허용은 2MB예요.
+                  </p>
+                )}
+              </div>
+            )}
+
             <p className="text-xs text-base-content/60">
-              GIF 변환은 다음 업데이트 예정 — 지금은 MP4만 받을 수 있어요.
-              필요하시면 ezgif.com 같은 외부 변환기로 GIF로 만들 수 있어요.
+              GIF 변환은 브라우저 안에서만 처리돼요(서버 비용 0). 첫 실행 시
+              ffmpeg.wasm 코어가 한번만 다운로드돼요.
             </p>
           </div>
         )}

@@ -15,6 +15,12 @@ export function NavBar() {
           <Link href="/generate" className="btn btn-ghost btn-sm">
             AI 생성
           </Link>
+          <Link href="/lora" className="btn btn-ghost btn-sm" title="시드 1장으로 캐릭터 LoRA를 학습해 32장 일관성 확보">
+            ✨ LoRA
+          </Link>
+          <Link href="/animate" className="btn btn-ghost btn-sm" title="정적 1장 → 5초 움직이는 클립 (Wan/Kling)">
+            🎞 움직임
+          </Link>
           <Link href="/editor" className="btn btn-ghost btn-sm">
             수동 에디터
           </Link>
@@ -57,6 +63,12 @@ export function NavBar() {
       <div className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4 py-2 md:hidden">
         <Link href="/generate" className="btn btn-ghost btn-xs flex-1">
           AI 생성
+        </Link>
+        <Link href="/lora" className="btn btn-ghost btn-xs flex-1">
+          ✨ LoRA
+        </Link>
+        <Link href="/animate" className="btn btn-ghost btn-xs flex-1">
+          🎞 움직임
         </Link>
         <Link href="/editor" className="btn btn-ghost btn-xs flex-1">
           에디터

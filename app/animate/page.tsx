@@ -14,7 +14,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { AnimateCard } from "@/components/AnimateCard";
+import { AnimateCard, type GifConvertStatus } from "@/components/AnimateCard";
 import {
   clearReplicateByok,
   getReplicateByok,
@@ -94,6 +94,14 @@ export default function AnimatePage() {
   });
   const [byokError, setByokError] = useState<string | null>(null);
 
+  // GIF 변환 (카카오 규격)
+  const [gifStatus, setGifStatus] = useState<GifConvertStatus>("idle");
+  const [gifProgress, setGifProgress] = useState<number | null>(null);
+  const [gifUrl, setGifUrl] = useState<string | null>(null);
+  const [gifBytes, setGifBytes] = useState<number | null>(null);
+  const [gifError, setGifError] = useState<string | null>(null);
+  const gifAbortRef = useRef<AbortController | null>(null);
+
   const abortRef = useRef<AbortController | null>(null);
   const dragCounterRef = useRef(0);
   const [dragOver, setDragOver] = useState(false);
@@ -115,6 +123,13 @@ export default function AnimatePage() {
       if (previewUrl) URL.revokeObjectURL(previewUrl);
     };
   }, [previewUrl]);
+
+  // GIF objectURL 회수 (메모리 누수 방지)
+  useEffect(() => {
+    return () => {
+      if (gifUrl) URL.revokeObjectURL(gifUrl);
+    };
+  }, [gifUrl]);
 
   const canGenerate = useMemo(() => {
     if (!file) return false;
@@ -245,6 +260,7 @@ export default function AnimatePage() {
 
   const reset = () => {
     abortRef.current?.abort();
+    gifAbortRef.current?.abort();
     setFile(null);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);
@@ -254,6 +270,12 @@ export default function AnimatePage() {
     setProgress(null);
     setAttempt(0);
     setPredictionId(null);
+    if (gifUrl) URL.revokeObjectURL(gifUrl);
+    setGifUrl(null);
+    setGifBytes(null);
+    setGifStatus("idle");
+    setGifProgress(null);
+    setGifError(null);
   };
 
   const downloadMp4 = async () => {
@@ -271,6 +293,62 @@ export default function AnimatePage() {
       const msg = err instanceof Error ? err.message : "다운로드 실패";
       setErrorMsg(msg);
     }
+  };
+
+  /**
+   * 카카오 "움직이는 이모티콘" 규격(360x360 · 24fps · 1초 · 무한루프)으로
+   * MP4 → GIF 변환. ffmpeg.wasm은 이벤트 핸들러 안에서 동적 import 되므로
+   * SSR에서 wasm이 로드될 위험이 없다.
+   */
+  const convertToKakaoGif = async () => {
+    if (!videoUrl) return;
+    if (gifUrl) {
+      URL.revokeObjectURL(gifUrl);
+      setGifUrl(null);
+      setGifBytes(null);
+    }
+    setGifError(null);
+    setGifProgress(0);
+    setGifStatus("converting");
+
+    gifAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    gifAbortRef.current = ctrl;
+
+    try {
+      // 동적 import: 첫 호출 시 ~30MB wasm을 받지만 같은 페이지에선 캐시.
+      const { convertMp4ToGif } = await import("@/lib/ai/gif-convert");
+      // Replicate CDN의 MP4를 먼저 Blob으로 받은 뒤 ffmpeg에 넘긴다.
+      // (URL을 그대로 넘겨도 fetchFile이 처리하지만, 이미 동일 함수를 쓰는
+      //  downloadAsBlob 경로와 일관성을 위해 Blob으로 받음.)
+      const mp4Blob = await downloadAsBlob(videoUrl);
+      const gif = await convertMp4ToGif(mp4Blob, {
+        width: 360,
+        height: 360,
+        fps: 24,
+        duration: 1,
+        signal: ctrl.signal,
+        onProgress: (r) => setGifProgress(r),
+      });
+      const url = URL.createObjectURL(gif);
+      setGifUrl(url);
+      setGifBytes(gif.size);
+      setGifProgress(1);
+      setGifStatus("succeeded");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "GIF 변환 실패";
+      setGifError(msg);
+      setGifStatus("failed");
+    }
+  };
+
+  const downloadGif = () => {
+    if (!gifUrl) return;
+    const a = document.createElement("a");
+    a.href = gifUrl;
+    const safe = (file?.name ?? "vibemoji").replace(/\.[^.]+$/, "");
+    a.download = `${safe}_kakao_360.gif`;
+    a.click();
   };
 
   return (
@@ -526,6 +604,13 @@ export default function AnimatePage() {
           onDownload={downloadMp4}
           onCancel={cancel}
           onReset={reset}
+          gifStatus={gifStatus}
+          gifProgress={gifProgress}
+          gifUrl={gifUrl}
+          gifBytes={gifBytes}
+          gifError={gifError}
+          onConvertGif={convertToKakaoGif}
+          onDownloadGif={downloadGif}
         />
       )}
 
@@ -540,17 +625,9 @@ export default function AnimatePage() {
             <li>제출 단위: 24개 (전체 움직이는 이모티콘 제안 시)</li>
           </ul>
           <p className="text-xs text-base-content/60">
-            지금은 MP4만 지원해요. MP4 → 24프레임 GIF 자동 변환은{" "}
-            <strong>다음 업데이트 예정</strong>이에요. 임시로{" "}
-            <a
-              href="https://ezgif.com/video-to-gif"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="link link-primary"
-            >
-              ezgif.com
-            </a>{" "}
-            같은 외부 변환기를 쓰실 수 있어요.
+            생성 완료 후 <strong>🎁 카카오 GIF로 변환</strong> 버튼을 누르면
+            브라우저에서 ffmpeg.wasm으로 360×360·24fps·1초 GIF를 즉시 만들어
+            드려요. 서버 비용 0, 모든 변환은 사용자 브라우저에서만 처리돼요.
           </p>
           <p className="text-xs">
             <Link href="/tools/resize" className="link link-primary">

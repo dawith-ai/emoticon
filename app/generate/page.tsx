@@ -28,6 +28,12 @@ import {
   setByok,
   clearByok,
 } from "@/lib/byok";
+import {
+  generateWithLora,
+  loadLoraRecords,
+  type StoredLoraRecord,
+} from "@/lib/ai/lora";
+import { getActiveReplicateKey } from "@/lib/byok-replicate";
 
 type Step = "input" | "seed" | "set" | "done";
 
@@ -64,6 +70,37 @@ export default function GeneratePage() {
     hasKey: false,
     masked: "",
   });
+
+  // LoRA 모드 — /lora 학습 후 ?lora=latest&trigger=X 로 진입 시 활성화
+  const [activeLora, setActiveLora] = useState<StoredLoraRecord | null>(null);
+  const [replicateReady, setReplicateReady] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("lora") !== "latest") {
+      setActiveLora(null);
+      return;
+    }
+    const wantedTrigger = params.get("trigger");
+    const records = loadLoraRecords(user?.uid ?? null);
+    const picked =
+      (wantedTrigger
+        ? records.find((r) => r.triggerWord === wantedTrigger)
+        : null) ?? records[0] ?? null;
+    setActiveLora(picked);
+    setReplicateReady(!!getActiveReplicateKey());
+  }, [user?.uid]);
+
+  const deactivateLora = () => {
+    setActiveLora(null);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("lora");
+      url.searchParams.delete("trigger");
+      window.history.replaceState({}, "", url.toString());
+    }
+  };
   const refreshByokView = () => {
     const { key, consented } = getByok();
     setByokStateLocal({
@@ -90,6 +127,7 @@ export default function GeneratePage() {
 
   const activeProvider = getProvider(providerId);
   const providerReady = !!activeProvider?.isReady();
+  const ready = activeLora ? replicateReady : providerReady;
 
   const addLog = (line: string) => {
     setLog((prev) => [...prev.slice(-40), `[${new Date().toLocaleTimeString()}] ${line}`]);
@@ -147,23 +185,42 @@ export default function GeneratePage() {
   };
 
   const generateSeed = async () => {
-    if (!activeProvider) return;
-    if (!activeProvider.isReady()) {
-      setError(
-        activeProvider.auth === "byok-required"
-          ? "Gemini 키가 없어요. 위 입력란에 붙여넣어 주세요. (1분 안에 받을 수 있어요)"
-          : `${activeProvider.label} 사용 가능 상태가 아니에요.`
-      );
-      return;
+    if (activeLora) {
+      if (!getActiveReplicateKey()) {
+        setError(
+          "Replicate 토큰이 없어요. /lora 페이지에서 등록한 후 다시 진입해주세요.",
+        );
+        return;
+      }
+    } else {
+      if (!activeProvider) return;
+      if (!activeProvider.isReady()) {
+        setError(
+          activeProvider.auth === "byok-required"
+            ? "Gemini 키가 없어요. 위 입력란에 붙여넣어 주세요. (1분 안에 받을 수 있어요)"
+            : `${activeProvider.label} 사용 가능 상태가 아니에요.`
+        );
+        return;
+      }
     }
 
     setBusy({ phase: "seed" });
     setError(null);
     setStep("seed");
-    addLog(`🌱 시드 생성 시작 (${activeProvider.label})`);
+    addLog(
+      activeLora
+        ? `🌱 시드 미리보기 생성 (LoRA · ${activeLora.triggerWord})`
+        : `🌱 시드 생성 시작 (${activeProvider?.label ?? "?"})`,
+    );
 
     try {
-      const blob = await activeProvider.generate({
+      const blob = activeLora
+        ? await generateWithLora(
+            activeLora.weights,
+            `${activeLora.triggerWord} ${buildSeedPrompt(prompt)}`,
+            { loraScale: 0.8, seed: hashSeed(prompt), width: 1024, height: 1024 },
+          )
+        : await activeProvider!.generate({
         prompt: buildSeedPrompt(prompt),
         width: 1024,
         height: 1024,
@@ -188,13 +245,18 @@ export default function GeneratePage() {
   };
 
   const generateAll = async () => {
-    if (!activeProvider || !seed) return;
+    if (!seed) return;
+    if (!activeLora && !activeProvider) return;
 
     setBusy({ phase: "variant", slot: 0, total: 32 });
     setError(null);
     setStep("set");
     cancelRef.current = false;
-    addLog(`🎨 32종 생성 시작 (${activeProvider.label})`);
+    addLog(
+      activeLora
+        ? `🎨 32종 생성 시작 (LoRA · ${activeLora.triggerWord})`
+        : `🎨 32종 생성 시작 (${activeProvider!.label})`,
+    );
     void saveDraft("set_progress");
 
     const initial: SlotResult[] = EMOTIONS_32.map((e) => ({
@@ -203,26 +265,37 @@ export default function GeneratePage() {
     }));
     setVariants(initial);
 
-    const throttle = makeThrottle(providerId);
+    const throttle = activeLora ? null : makeThrottle(providerId);
     let success = 0;
 
     for (let i = 0; i < EMOTIONS_32.length; i++) {
       if (cancelRef.current) break;
       const emotion = EMOTIONS_32[i];
       setBusy({ phase: "variant", slot: i + 1, total: 32 });
-      await throttle.wait();
+      if (throttle) await throttle.wait();
       try {
-        const variantPrompt = buildVariantPrompt(
+        const variantPromptBase = buildVariantPrompt(
           prompt,
           emotion,
-          activeProvider.supportsReference,
+          activeLora ? true : activeProvider!.supportsReference,
         );
-        const blob = await activeProvider.generate({
-          prompt: variantPrompt,
+        const blob = activeLora
+          ? await generateWithLora(
+              activeLora.weights,
+              `${activeLora.triggerWord} ${variantPromptBase}`,
+              {
+                loraScale: 0.8,
+                seed: hashSeed(prompt) + emotion.slot,
+                width: 1024,
+                height: 1024,
+              },
+            )
+          : await activeProvider!.generate({
+          prompt: variantPromptBase,
           width: 1024,
           height: 1024,
           seed: hashSeed(prompt) + emotion.slot,
-          referenceBlob: activeProvider.supportsReference ? seed.blob : undefined,
+          referenceBlob: activeProvider!.supportsReference ? seed.blob : undefined,
           label: emotion.label,
         });
         const url = URL.createObjectURL(blob);
@@ -298,12 +371,33 @@ export default function GeneratePage() {
         <Stepper current={step} />
       </div>
 
+      {/* LoRA 모드 배너 */}
+      {activeLora && (
+        <div className="alert alert-success text-xs">
+          <div className="flex flex-1 flex-wrap items-center gap-2">
+            <span>
+              ✨ <strong>LoRA 모드 활성</strong> — 트리거 단어{" "}
+              <code className="font-mono">{activeLora.triggerWord}</code>로 모든 32장이 같은 캐릭터로 생성됩니다.
+            </span>
+            {!replicateReady && (
+              <span className="badge badge-warning badge-sm">⚠ Replicate 토큰 없음</span>
+            )}
+            <button onClick={deactivateLora} className="btn btn-ghost btn-xs ml-auto">
+              일반 모드로
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 품질 비교 안내 */}
-      <div className="alert text-xs">
-        💡 <span className="font-bold">퀄리티 가이드:</span>{" "}
-        🌸 <strong>Pollinations</strong> = 무료 즉시, 미리보기/연습용 ·
-        ✨ <strong>Gemini (BYOK)</strong> = 무료 키 1분 발급, <strong>카카오 심사 통과 가능 수준</strong>
-      </div>
+      {!activeLora && (
+        <div className="alert text-xs">
+          💡 <span className="font-bold">퀄리티 가이드:</span>{" "}
+          🌸 <strong>Pollinations</strong> = 무료 즉시, 미리보기/연습용 ·
+          ✨ <strong>Gemini (BYOK)</strong> = 무료 키 1분 발급, <strong>카카오 심사 통과 가능 수준</strong> ·
+          <Link href="/lora" className="link link-primary ml-1">🎨 LoRA 학습</Link> = 시드 1장 → 32장 100% 일관 (Premium)
+        </div>
+      )}
 
       {/* Provider 선택 */}
       <div className="card border border-base-300 bg-base-100">
@@ -432,7 +526,7 @@ export default function GeneratePage() {
               </p>
               <button
                 onClick={generateSeed}
-                disabled={!!busy || !providerReady}
+                disabled={!!busy || !ready}
                 className="btn btn-primary"
               >
                 {busy?.phase === "seed" ? "생성 중..." : "시드 만들기 →"}
@@ -472,7 +566,7 @@ export default function GeneratePage() {
               <div className="flex gap-2">
                 <button
                   onClick={generateSeed}
-                  disabled={!!busy || !providerReady}
+                  disabled={!!busy || !ready}
                   className="btn btn-outline"
                 >
                   🔄 재생성

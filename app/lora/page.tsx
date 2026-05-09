@@ -543,8 +543,14 @@ export default function LoraPage() {
               >
                 🎨 1장 테스트 생성 (~$0.025)
               </button>
+              <Link
+                href={`/generate?lora=latest&trigger=${encodeURIComponent(resultRecord.triggerWord)}`}
+                className="btn btn-primary btn-sm"
+              >
+                ✨ 이 LoRA로 32장 만들기 →
+              </Link>
               <Link href="/generate" className="btn btn-ghost btn-sm">
-                생성 페이지로 →
+                일반 생성 페이지로
               </Link>
             </div>
 

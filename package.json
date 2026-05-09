@@ -13,17 +13,19 @@
     "eval": "tsx evals/cli.ts"
   },
   "dependencies": {
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
     "@google/genai": "^1.52.0",
     "@sentry/browser": "^10.51.0",
     "dotenv": "^17.4.2",
     "firebase": "^12.12.1",
     "js-yaml": "^4.1.1",
+    "jszip": "^3.10.1",
     "next": "^16.2.4",
     "posthog-js": "^1.372.9",
     "react": "19.0.0",
     "react-dom": "19.0.0",
-    "sharp": "^0.34.5",
-    "jszip": "^3.10.1"
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
