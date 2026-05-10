@@ -19,6 +19,13 @@ export function NavBar() {
           >
             🧐 합격 코치
           </Link>
+          <Link
+            href="/feedback"
+            className="btn btn-ghost btn-sm"
+            title="카카오 제출 결과 기록 — 합격/거절 데이터 누적"
+          >
+            📊 결과
+          </Link>
           <Link href="/generate" className="btn btn-ghost btn-sm">
             AI 생성
           </Link>

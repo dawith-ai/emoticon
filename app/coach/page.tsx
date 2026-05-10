@@ -31,6 +31,12 @@ import {
   validateSet,
   type SetSpecItem,
 } from "@/lib/ai/kakao-spec";
+import {
+  classifyOffline,
+  parseRejectEmail,
+  RejectParserError,
+  type RejectClassification,
+} from "@/lib/ai/reject-parser";
 
 const SESSION_KEY = "vibemoji.batch.frames";
 const TOTAL_SLOTS = EMOTIONS_32.length;
@@ -113,6 +119,36 @@ export default function CoachPage() {
 
   // 거절 사유 (Tab B)
   const [kakaoFeedback, setKakaoFeedback] = useState<string>("");
+  const [rejectClass, setRejectClass] = useState<RejectClassification | null>(null);
+  const [rejectClassifyBusy, setRejectClassifyBusy] = useState<false | "online" | "offline">(false);
+  const [rejectClassifyError, setRejectClassifyError] = useState<string | null>(null);
+
+  const onClassifyReject = (mode: "online" | "offline") => {
+    setRejectClassifyError(null);
+    if (!kakaoFeedback.trim()) {
+      setRejectClassifyError("거절 사유 텍스트를 먼저 입력해주세요.");
+      return;
+    }
+    if (mode === "offline") {
+      setRejectClass(classifyOffline(kakaoFeedback));
+      return;
+    }
+    setRejectClassifyBusy("online");
+    parseRejectEmail(kakaoFeedback)
+      .then((res) => setRejectClass(res))
+      .catch((err: unknown) => {
+        if (err instanceof RejectParserError) {
+          setRejectClassifyError(err.message);
+        } else {
+          setRejectClassifyError(
+            err instanceof Error ? err.message : "분류 실패",
+          );
+        }
+        // Gemini 실패 시 오프라인 폴백
+        setRejectClass(classifyOffline(kakaoFeedback));
+      })
+      .finally(() => setRejectClassifyBusy(false));
+  };
 
   // 실행 상태
   const [hasKey, setHasKey] = useState<boolean>(false);
@@ -342,6 +378,23 @@ export default function CoachPage() {
 
       setAudit(auditResult);
       setSpecReports(specs);
+
+      // /feedback 흐름으로 핸드오프 (옵트인 결과 수집)
+      if (typeof window !== "undefined") {
+        try {
+          window.sessionStorage.setItem(
+            "vibemoji.coach.lastAudit",
+            JSON.stringify({
+              setOverall: auditResult.setOverall,
+              approvalProb: auditResult.setApprovalProb,
+              weakestSlots: auditResult.weakestSlots,
+              auditedAt: Date.now(),
+            }),
+          );
+        } catch {
+          // sessionStorage quota — 무시
+        }
+      }
 
       if (ctrl.signal.aborted) {
         setRunStatus("canceled");
@@ -688,6 +741,77 @@ export default function CoachPage() {
               비워두어도 동작해요. 입력 시 회복 프롬프트가 카카오 메시지에 맞춰
               조정됩니다.
             </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => onClassifyReject("online")}
+                disabled={!!rejectClassifyBusy || !kakaoFeedback.trim()}
+                className="btn btn-primary btn-sm"
+              >
+                {rejectClassifyBusy === "online" ? "분석 중..." : "🤖 차원 자동 분류 (Gemini)"}
+              </button>
+              <button
+                type="button"
+                onClick={() => onClassifyReject("offline")}
+                disabled={!kakaoFeedback.trim()}
+                className="btn btn-ghost btn-sm"
+              >
+                키워드 분류 (오프라인)
+              </button>
+              {rejectClass && (
+                <button
+                  type="button"
+                  onClick={() => setRejectClass(null)}
+                  className="btn btn-ghost btn-sm"
+                >
+                  결과 지우기
+                </button>
+              )}
+            </div>
+            {rejectClassifyError && (
+              <div className="alert alert-error text-xs">
+                <span>{rejectClassifyError}</span>
+              </div>
+            )}
+            {rejectClass && (
+              <div className="rounded border border-base-300 bg-base-200/50 p-3 space-y-2">
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="font-bold">차원별 신뢰도:</span>
+                  {DIMENSIONS.map((d) => {
+                    const score = rejectClass.dimensions[d];
+                    const pct = Math.round(score * 100);
+                    return (
+                      <span
+                        key={d}
+                        className={`badge badge-sm ${
+                          d === rejectClass.primary
+                            ? "badge-error"
+                            : rejectClass.secondary.includes(d)
+                              ? "badge-warning"
+                              : "badge-ghost"
+                        }`}
+                        title={`${DIMENSION_LABEL_KO[d]} ${pct}%`}
+                      >
+                        {DIMENSION_LABEL_KO[d]} {pct}%
+                      </span>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-base-content/80">
+                  <strong>요약:</strong> {rejectClass.summary}
+                </p>
+                {rejectClass.actionableLines.length > 0 && (
+                  <ul className="list-disc pl-4 text-xs text-base-content/70 space-y-0.5">
+                    {rejectClass.actionableLines.map((line, i) => (
+                      <li key={i}>{line}</li>
+                    ))}
+                  </ul>
+                )}
+                <p className="text-[11px] text-base-content/50">
+                  ⚙️ 우선 수정 차원이 회복 프롬프트에 자동 반영됩니다.
+                </p>
+              </div>
+            )}
           </div>
         </section>
       )}
@@ -810,6 +934,9 @@ export default function CoachPage() {
                 >
                   신청용 ZIP 다운로드
                 </button>
+                <Link href="/feedback" className="btn btn-warning btn-sm">
+                  📊 제출 후 결과 기록 →
+                </Link>
               </div>
             </div>
 

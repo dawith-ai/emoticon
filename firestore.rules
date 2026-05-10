@@ -51,6 +51,12 @@ service cloud.firestore {
       match /loras/{trainingId} {
         allow read, write, delete: if isOwner(userId);
       }
+
+      // users/{userId}/submissions/{submissionId} — 카카오 제출 결과 옵트인 데이터
+      // 합격/거절 결과를 모아 코치 정확도를 높이는 플라이휠. 본인만 읽기/쓰기.
+      match /submissions/{submissionId} {
+        allow read, write, delete: if isOwner(userId);
+      }
     }
 
     // ─────────────────────────────────────────

@@ -11,6 +11,7 @@
 
 import { getActiveByokKey } from "@/lib/byok";
 import { blobToBase64 } from "./types";
+import { buildCriticContext } from "./kakao-patterns";
 
 const ENDPOINT =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
@@ -89,7 +90,7 @@ export class KakaoCriticError extends Error {
   }
 }
 
-const CRITIC_PROMPT = `You are a Kakao Emoticon submission reviewer. Evaluate this single sticker frame against
+const CRITIC_PROMPT_BASE = `You are a Kakao Emoticon submission reviewer. Evaluate this single sticker frame against
 the SEED reference for approval likelihood. Return ONLY JSON:
 {
   "scores": { "line": N, "color": N, "background": N, "expression": N, "consistency": N, "copyright": N },
@@ -100,7 +101,11 @@ Scoring rubric (0-10): line=outline weight consistency + thick black outline sta
 color=palette restraint (≤256, no gradients), background=clean transparency,
 expression=clear messenger-context emotion readability, consistency=same character as seed,
 copyright=originality (10 = clearly original, 0 = direct IP knock-off).
-Each "topRisks" and "suggestedFixes" must contain at most 3 items, each a single Korean sentence.`;
+Each "topRisks" and "suggestedFixes" must contain at most 3 items, each a single Korean sentence.
+Apply the following approved-pattern reference when scoring:`;
+
+/** 패턴 컨텍스트는 모듈 로드 시 1회 빌드 (호출당 토큰 절약) */
+const CRITIC_PROMPT = `${CRITIC_PROMPT_BASE}\n\n${buildCriticContext({ maxPerCategory: 3 })}`;
 
 type GeminiTextResponse = {
   candidates?: Array<{
