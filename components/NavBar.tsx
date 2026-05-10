@@ -39,6 +39,9 @@ export function NavBar() {
                 <Link href="/tools/resize">📐 사이즈 자동 변환기</Link>
               </li>
               <li>
+                <Link href="/animate-batch">🎞 32장 일괄 애니메이션</Link>
+              </li>
+              <li>
                 <Link href="/resources">📚 외부 자료 큐레이션</Link>
               </li>
               <li className="menu-title text-[10px]">전체 보기</li>

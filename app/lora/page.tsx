@@ -17,6 +17,11 @@ import {
   type StoredLoraRecord,
 } from "@/lib/ai/lora";
 import {
+  loadLorasFromFirestore,
+  saveLoraToFirestore,
+  syncLoras,
+} from "@/lib/firebase/loraStore";
+import {
   clearReplicateByok,
   getReplicateByok,
   isValidReplicateKey,
@@ -89,18 +94,48 @@ export default function LoraPage() {
 
   // Saved records list
   const [records, setRecords] = useState<StoredLoraRecord[]>([]);
+  const [syncedIds, setSyncedIds] = useState<Set<string>>(new Set());
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  // Load BYOK + saved records on mount
+  // Load BYOK + saved records on mount, then try to sync with Firestore
   useEffect(() => {
     const s = getReplicateByok();
     setByokKey(s.key);
     setByokSavedKey(s.key);
     setByokConsent(s.consented);
     setByokSavedConsent(s.consented);
-    setRecords(loadLoraRecords(user?.uid ?? null));
+
+    const local = loadLoraRecords(user?.uid ?? null);
+    setRecords(local);
+    setSyncedIds(new Set());
+
+    const uid = user?.uid;
+    if (!uid) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const merged = await syncLoras(uid, local);
+        if (cancelled) return;
+        setRecords(merged);
+        // 동기화 직후, 원격에 존재하는 ID 집합을 다시 조회해 배지 표시 기준으로 사용
+        try {
+          const remote = await loadLorasFromFirestore(uid);
+          if (cancelled) return;
+          setSyncedIds(new Set(remote.map((r) => r.trainingId)));
+        } catch {
+          // 배지용 정보 — 실패해도 흐름에는 영향 없음
+        }
+      } catch {
+        // Firestore 실패는 로컬 흐름을 막지 않음
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [user?.uid]);
 
   // Cleanup preview URLs on unmount/replace
@@ -246,6 +281,21 @@ export default function LoraPage() {
       setRecords(loadLoraRecords(user?.uid ?? null));
       setResultRecord(record);
       setPhase("succeeded");
+
+      // Firestore 동기화 — 실패해도 흐름 안 막게 catch
+      const uid = user?.uid;
+      if (uid) {
+        try {
+          await saveLoraToFirestore(uid, record);
+          setSyncedIds((prev) => {
+            const next = new Set(prev);
+            next.add(record.trainingId);
+            return next;
+          });
+        } catch {
+          // Firestore 실패는 조용히 무시 (로컬에는 이미 저장됨)
+        }
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "알 수 없는 오류";
       setErrorMessage(msg);
@@ -575,20 +625,39 @@ export default function LoraPage() {
           <div className="card-body space-y-2">
             <h2 className="card-title text-lg">저장된 LoRA</h2>
             <ul className="space-y-1 text-xs">
-              {records.map((r) => (
-                <li key={r.trainingId} className="flex flex-wrap items-center gap-2">
-                  <span className="badge badge-sm badge-outline font-mono">
-                    {r.triggerWord}
-                  </span>
-                  <code className="break-all">{r.destination}</code>
-                  <span className="ml-auto text-base-content/60">
-                    {new Date(r.createdAt).toLocaleString()}
-                  </span>
-                </li>
-              ))}
+              {records.map((r) => {
+                const isSynced = syncedIds.has(r.trainingId);
+                return (
+                  <li
+                    key={r.trainingId}
+                    className="flex flex-wrap items-center gap-2"
+                  >
+                    <span className="badge badge-sm badge-outline font-mono">
+                      {r.triggerWord}
+                    </span>
+                    {user?.uid ? (
+                      isSynced ? (
+                        <span className="badge badge-sm badge-success badge-outline">
+                          Firestore 동기화됨
+                        </span>
+                      ) : (
+                        <span className="badge badge-sm badge-ghost">로컬만</span>
+                      )
+                    ) : (
+                      <span className="badge badge-sm badge-ghost">로컬만</span>
+                    )}
+                    <code className="break-all">{r.destination}</code>
+                    <span className="ml-auto text-base-content/60">
+                      {new Date(r.createdAt).toLocaleString()}
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
             <p className="text-[11px] text-base-content/50">
-              localStorage에 보관되며, 다른 기기에는 동기화되지 않습니다. (Firestore 연동 예정)
+              {user?.uid
+                ? "로그인된 계정의 Firestore에 자동 동기화됩니다 — 다른 기기에서도 같은 목록이 보여요."
+                : "현재 로그인되지 않아 localStorage에만 저장됩니다. 로그인하면 디바이스 간 동기화돼요."}
             </p>
           </div>
         </section>

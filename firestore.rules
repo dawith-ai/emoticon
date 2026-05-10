@@ -45,6 +45,12 @@ service cloud.firestore {
           allow write: if false;
         }
       }
+
+      // users/{userId}/loras/{trainingId} — Replicate LoRA 학습 결과 영속화
+      // Replicate 토큰은 BYOK라 클라이언트가 학습 비용 결제 → 결과 메타만 동기화
+      match /loras/{trainingId} {
+        allow read, write, delete: if isOwner(userId);
+      }
     }
 
     // ─────────────────────────────────────────

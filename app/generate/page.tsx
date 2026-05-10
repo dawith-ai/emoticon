@@ -34,6 +34,8 @@ import {
   type StoredLoraRecord,
 } from "@/lib/ai/lora";
 import { getActiveReplicateKey } from "@/lib/byok-replicate";
+import { judgeBatch, type JudgeVerdict } from "@/lib/ai/judge";
+import type { EmotionDef } from "@/lib/emotions";
 
 type Step = "input" | "seed" | "set" | "done";
 
@@ -51,6 +53,8 @@ type SlotResult = {
   blob?: Blob;
   url?: string;
   error?: string;
+  /** LLM-judge 결과 — 시드와 캐릭터 일관성 (0-10). 7 미만이면 재생성 권장 */
+  judge?: JudgeVerdict;
 };
 
 export default function GeneratePage() {
@@ -63,6 +67,7 @@ export default function GeneratePage() {
   const [busy, setBusy] = useState<null | { phase: "seed" | "variant"; slot?: number; total?: number }>(null);
   const [error, setError] = useState<string | null>(null);
   const [log, setLog] = useState<string[]>([]);
+  const [judging, setJudging] = useState(false);
 
   // BYOK 인라인
   const [byokInput, setByokInput] = useState("");
@@ -244,6 +249,35 @@ export default function GeneratePage() {
     }
   };
 
+  /** 단일 슬롯 변형 생성 — 배치 루프와 슬롯별 재시도가 공유 */
+  const generateOneVariant = async (emotion: EmotionDef): Promise<Blob> => {
+    const variantPromptBase = buildVariantPrompt(
+      prompt,
+      emotion,
+      activeLora ? true : activeProvider!.supportsReference,
+    );
+    if (activeLora) {
+      return generateWithLora(
+        activeLora.weights,
+        `${activeLora.triggerWord} ${variantPromptBase}`,
+        {
+          loraScale: 0.8,
+          seed: hashSeed(prompt) + emotion.slot,
+          width: 1024,
+          height: 1024,
+        },
+      );
+    }
+    return activeProvider!.generate({
+      prompt: variantPromptBase,
+      width: 1024,
+      height: 1024,
+      seed: hashSeed(prompt) + emotion.slot,
+      referenceBlob: activeProvider!.supportsReference ? seed!.blob : undefined,
+      label: emotion.label,
+    });
+  };
+
   const generateAll = async () => {
     if (!seed) return;
     if (!activeLora && !activeProvider) return;
@@ -274,33 +308,10 @@ export default function GeneratePage() {
       setBusy({ phase: "variant", slot: i + 1, total: 32 });
       if (throttle) await throttle.wait();
       try {
-        const variantPromptBase = buildVariantPrompt(
-          prompt,
-          emotion,
-          activeLora ? true : activeProvider!.supportsReference,
-        );
-        const blob = activeLora
-          ? await generateWithLora(
-              activeLora.weights,
-              `${activeLora.triggerWord} ${variantPromptBase}`,
-              {
-                loraScale: 0.8,
-                seed: hashSeed(prompt) + emotion.slot,
-                width: 1024,
-                height: 1024,
-              },
-            )
-          : await activeProvider!.generate({
-          prompt: variantPromptBase,
-          width: 1024,
-          height: 1024,
-          seed: hashSeed(prompt) + emotion.slot,
-          referenceBlob: activeProvider!.supportsReference ? seed.blob : undefined,
-          label: emotion.label,
-        });
+        const blob = await generateOneVariant(emotion);
         const url = URL.createObjectURL(blob);
         setVariants((prev) =>
-          prev.map((v) => (v.slot === emotion.slot ? { ...v, blob, url } : v))
+          prev.map((v) => (v.slot === emotion.slot ? { ...v, blob, url, error: undefined } : v))
         );
         success++;
         addLog(`✓ ${emotion.slot} ${emotion.label} (${(blob.size / 1024).toFixed(1)}KB)`);
@@ -317,6 +328,110 @@ export default function GeneratePage() {
     setStep("done");
     addLog(`🎉 완료 — 성공 ${success}/32`);
     void saveDraft(`done_${success}_of_32`);
+
+    // LLM-judge 자동 QC — Gemini BYOK 활성화 시
+    if (byokState.hasKey && success > 0) {
+      void runJudge();
+    }
+  };
+
+  /** 단일 슬롯 재시도 (실패 또는 judge 낮음) */
+  const retrySlot = async (slot: number) => {
+    if (!seed) return;
+    if (!activeLora && !activeProvider) return;
+    const emotion = EMOTIONS_32.find((e) => e.slot === slot);
+    if (!emotion) return;
+    setVariants((prev) =>
+      prev.map((v) => (v.slot === slot ? { ...v, error: undefined, judge: undefined } : v)),
+    );
+    addLog(`🔄 ${slot} ${emotion.label} 재시도`);
+    try {
+      const blob = await generateOneVariant(emotion);
+      const url = URL.createObjectURL(blob);
+      setVariants((prev) =>
+        prev.map((v) => {
+          if (v.slot !== slot) return v;
+          if (v.url) URL.revokeObjectURL(v.url);
+          return { ...v, blob, url, error: undefined, judge: undefined };
+        }),
+      );
+      addLog(`✓ ${slot} ${emotion.label} 재시도 성공`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setVariants((prev) =>
+        prev.map((v) => (v.slot === slot ? { ...v, error: msg } : v)),
+      );
+      addLog(`❌ ${slot} ${emotion.label} 재시도 실패: ${msg}`);
+    }
+  };
+
+  /** 32장 LLM-judge 일괄 평가 (Gemini BYOK 필요) */
+  const runJudge = async () => {
+    if (!seed || judging) return;
+    if (!byokState.hasKey) {
+      setError("LLM-judge는 Gemini BYOK 키가 필요합니다.");
+      return;
+    }
+    const ready = variants.filter((v): v is SlotResult & { blob: Blob } => !!v.blob);
+    if (ready.length === 0) return;
+    setJudging(true);
+    addLog(`🧐 일관성 자동 평가 시작 (${ready.length}장)`);
+    try {
+      const results = await judgeBatch(
+        seed.blob,
+        ready.map((v) => ({ slot: v.slot, blob: v.blob })),
+        {
+          threshold: 7,
+          concurrency: 3,
+          onProgress: (done, total) => {
+            addLog(`🧐 ${done}/${total} 평가 중`);
+          },
+        },
+      );
+      setVariants((prev) =>
+        prev.map((v) => {
+          const r = results.find((x) => x.slot === v.slot);
+          return r ? { ...v, judge: r.verdict } : v;
+        }),
+      );
+      const inconsistent = results.filter((r) => !r.verdict.consistent).length;
+      addLog(
+        inconsistent > 0
+          ? `🧐 평가 완료 — ${inconsistent}장이 시드와 다른 캐릭터로 보임 (재시도 권장)`
+          : `🧐 평가 완료 — 32장 모두 시드와 일관`,
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      addLog(`❌ 평가 실패: ${msg}`);
+      setError(`LLM-judge 실패: ${msg}`);
+    } finally {
+      setJudging(false);
+    }
+  };
+
+  /** 일관성 낮은 슬롯 자동 재생성 */
+  const retryInconsistent = async () => {
+    const targets = variants.filter((v) => v.judge && !v.judge.consistent);
+    if (targets.length === 0) return;
+    addLog(`🔄 일관성 낮은 ${targets.length}장 자동 재생성`);
+    for (const v of targets) {
+      await retrySlot(v.slot);
+    }
+  };
+
+  /** 32장을 sessionStorage에 저장하고 /animate-batch로 핸드오프 */
+  const handoffToAnimateBatch = async () => {
+    const ready = variants.filter((v): v is SlotResult & { blob: Blob } => !!v.blob);
+    if (ready.length === 0) return;
+    const payload = await Promise.all(
+      ready.map(async (v) => ({
+        slot: v.slot,
+        label: v.label,
+        dataUrl: await blobToDataUrl(v.blob),
+      })),
+    );
+    sessionStorage.setItem("vibemoji.batch.frames", JSON.stringify(payload));
+    window.location.href = "/animate-batch?source=generate";
   };
 
   const cancel = () => {
@@ -615,11 +730,19 @@ export default function GeneratePage() {
               <div className="mt-3 grid grid-cols-4 gap-2 md:grid-cols-8">
                 {EMOTIONS_32.map((e) => {
                   const v = variants.find((x) => x.slot === e.slot);
+                  const inconsistent = !!(v?.judge && !v.judge.consistent);
+                  const showRetry =
+                    step === "done" && !busy && (v?.error || inconsistent);
+                  const tooltip = v?.error
+                    ? `실패: ${v.error}`
+                    : v?.judge
+                      ? `${e.slot}. ${e.label} · 일관성 ${v.judge.score}/10 — ${v.judge.reason}`
+                      : `${e.slot}. ${e.label}`;
                   return (
                     <div
                       key={e.slot}
-                      className={`sticker-tile relative flex flex-col items-center justify-center overflow-hidden ${v?.blob ? "filled" : ""} ${v?.error ? "border-error" : ""}`}
-                      title={v?.error ?? `${e.slot}. ${e.label}`}
+                      className={`sticker-tile relative flex flex-col items-center justify-center overflow-hidden ${v?.blob ? "filled" : ""} ${v?.error || inconsistent ? "border-error" : ""}`}
+                      title={tooltip}
                       onClick={() => v?.blob && downloadOne(v)}
                       style={{ cursor: v?.blob ? "pointer" : "default" }}
                     >
@@ -634,6 +757,28 @@ export default function GeneratePage() {
                       ) : busy?.phase === "variant" && busy.slot === e.slot ? (
                         <span className="loading loading-spinner loading-xs" />
                       ) : null}
+                      {v?.judge && (
+                        <span
+                          className={`absolute right-0.5 top-0.5 rounded px-1 text-[9px] font-bold ${v.judge.consistent ? "bg-success/80 text-success-content" : "bg-error/80 text-error-content"}`}
+                          aria-label={`일관성 점수 ${v.judge.score}/10`}
+                        >
+                          {v.judge.score}
+                        </span>
+                      )}
+                      {showRetry && (
+                        <button
+                          type="button"
+                          onClick={(ev) => {
+                            ev.stopPropagation();
+                            void retrySlot(e.slot);
+                          }}
+                          className="absolute left-0.5 top-0.5 rounded bg-base-100/90 px-1 text-[10px] hover:bg-primary hover:text-primary-content"
+                          aria-label="이 슬롯만 재생성"
+                          title="이 슬롯만 재생성"
+                        >
+                          🔄
+                        </button>
+                      )}
                       <span className="absolute bottom-0.5 text-[9px] text-base-content/60 bg-base-100/70 px-1 rounded">
                         {e.label}
                       </span>
@@ -652,20 +797,75 @@ export default function GeneratePage() {
 
           {step === "done" && (
             <div className="card border border-success/30 bg-success/5">
-              <div className="card-body">
+              <div className="card-body space-y-3">
                 <h3 className="card-title text-success">
                   🎉 32장 세트 생성 완료
                 </h3>
                 <p className="text-sm">
-                  슬롯 클릭 → 개별 PNG 다운로드. 또는 ZIP으로 일괄 다운로드 후
-                  사이즈 변환기에서 카카오/OGQ/라인/Etsy 사양으로 자동 변환하세요.
+                  슬롯 클릭 → 개별 PNG 다운로드. ZIP 일괄 + 사이즈 변환 + 움직이는 이모티콘 일괄 변환 가능.
                 </p>
-                <div className="mt-3 flex flex-wrap gap-2">
+
+                {/* QC + 통계 */}
+                {(() => {
+                  const judged = variants.filter((v) => v.judge);
+                  const inconsistent = judged.filter((v) => v.judge && !v.judge.consistent);
+                  if (judged.length === 0 && !judging) {
+                    return byokState.hasKey ? (
+                      <button
+                        onClick={runJudge}
+                        className="btn btn-outline btn-sm self-start"
+                      >
+                        🧐 시드와 일관성 자동 평가
+                      </button>
+                    ) : (
+                      <p className="text-xs text-base-content/60">
+                        💡 Gemini 키 등록 시 32장 자동 일관성 평가 사용 가능
+                      </p>
+                    );
+                  }
+                  if (judging) {
+                    return (
+                      <div className="alert alert-info text-xs">
+                        <span className="loading loading-spinner loading-xs" />
+                        <span>일관성 평가 중… ({judged.length}/{variants.filter((v) => v.blob).length})</span>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="alert text-xs">
+                      <span>
+                        🧐 일관성 평가 완료:{" "}
+                        <strong>{judged.length - inconsistent.length}/{judged.length}</strong>장 시드와 일관 ·{" "}
+                        <strong className="text-error">{inconsistent.length}</strong>장 어긋남
+                      </span>
+                      {inconsistent.length > 0 && (
+                        <button
+                          onClick={retryInconsistent}
+                          className="btn btn-error btn-xs"
+                        >
+                          🔄 어긋난 {inconsistent.length}장 자동 재생성
+                        </button>
+                      )}
+                      <button onClick={runJudge} className="btn btn-ghost btn-xs">
+                        다시 평가
+                      </button>
+                    </div>
+                  );
+                })()}
+
+                <div className="flex flex-wrap gap-2">
                   <button onClick={downloadAll} className="btn btn-primary btn-sm">
                     ⬇ 전체 ZIP 다운로드
                   </button>
+                  <button
+                    onClick={handoffToAnimateBatch}
+                    className="btn btn-secondary btn-sm"
+                    title="32장 모두 5초 클립으로 변환 후 카카오 GIF로 일괄 변환"
+                  >
+                    🎞 32장 일괄 움직이는 이모티콘 →
+                  </button>
                   <Link href="/tools/resize" className="btn btn-outline btn-sm">
-                    📐 사이즈 변환기로 →
+                    📐 사이즈 변환기로
                   </Link>
                   <Link href="/marketplace" className="btn btn-warning btn-sm">
                     💰 수익화 허브
@@ -721,4 +921,14 @@ function hashSeed(s: string): number {
   let h = 0;
   for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   return h % 1_000_000;
+}
+
+/** Blob → data URL (sessionStorage 호환) */
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error("Blob → data URL 변환 실패"));
+    reader.readAsDataURL(blob);
+  });
 }
