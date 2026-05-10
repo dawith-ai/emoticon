@@ -9,56 +9,86 @@ export default function HomePage() {
         <div className="hero-content text-center">
           <div className="max-w-2xl">
             <span className="badge badge-warning mb-4 gap-1">
-              💎 가입 시 무료 5 크레딧 (시드 1장 체험)
+              📊 카카오 이모티콘 합격률 약 5% — 거절 95%
             </span>
             <h1 className="text-4xl font-bold leading-tight md:text-5xl">
-              한 줄로 32장
+              카카오 이모티콘
               <br />
-              이모티콘 만들기
+              <span className="text-yellow-300">합격까지</span> 데려가는 AI 코치
             </h1>
             <p className="mt-4 text-base md:text-lg">
-              그림 못 그려도 괜찮아요. 자연어로 캐릭터를 만들고,
+              32장 만드는 건 시작이에요. 우리가 출시 전 자동 감사로 약점을 찾고,
               <br />
-              카카오·OGQ·라인·Etsy에 한 번에 신청할 수 있어요.
+              거절 사유를 분석해 자동으로 수정안까지 만들어줍니다.
             </p>
             <div className="mt-8 flex flex-col items-center gap-3 md:flex-row md:justify-center">
-              <Link href="/generate" className="btn btn-warning w-full md:w-auto">
-                ✨ AI로 만들기
+              <Link href="/coach" className="btn btn-warning w-full md:w-auto">
+                🧐 합격 사전 감사 시작
               </Link>
-              <Link href="/editor" className="btn btn-outline btn-warning w-full md:w-auto">
-                ✏️ 직접 그리기
+              <Link href="/generate" className="btn btn-outline btn-warning w-full md:w-auto">
+                ✨ 32장 AI 생성
               </Link>
             </div>
+            <p className="mt-4 text-xs text-primary-content/80">
+              감사는 Gemini 무료 키, 학습/애니메이션은 Replicate BYOK — 운영자 비용 0
+            </p>
           </div>
         </div>
       </section>
 
       <section>
         <div className="mb-6 text-center">
-          <h2 className="text-2xl font-bold">3가지 핵심 기능</h2>
+          <h2 className="text-2xl font-bold">합격까지 가는 4단계</h2>
           <p className="mt-2 text-base-content/70">
-            만들기부터 수익화까지, 막힘 없이 이어져요.
+            "AI로 만든 32장"이 끝이 아니라, "심사 통과한 32장"이 목표예요.
           </p>
         </div>
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-4">
           <FeatureCard
-            emoji="🤖"
-            title="AI 캐릭터 생성"
-            desc="자연어 한 줄로 캐릭터 시드 + 32종 표정을 자동 생성해요. Nano Banana 기반."
+            emoji="🧐"
+            title="① 합격 사전 감사"
+            desc="6개 차원(선·색·배경·표정·일관성·저작권)으로 32장 자동 평가. 약점 슬롯·합격 확률·수정안까지."
+            href="/coach"
+            highlight
+          />
+          <FeatureCard
+            emoji="✨"
+            title="② LoRA 캐릭터 학습"
+            desc="시드 1장 → Flux LoRA로 32장 100% 동일 캐릭터. 카카오 1번 컷오프 사유(캐릭터 일관성) 해소."
+            href="/lora"
+          />
+          <FeatureCard
+            emoji="🎨"
+            title="③ 32장 일괄 생성"
+            desc="Pollinations / Gemini / LoRA 모드 + 자동 일관성 평가 + 슬롯별 재시도 한 번에."
             href="/generate"
           />
           <FeatureCard
-            emoji="✏️"
-            title="수동 에디터 + AI 보정"
-            desc="모바일 친화 360x360 캔버스. AI가 부족한 표정을 추천하고 외곽선·투명배경을 자동 처리해요."
-            href="/editor"
+            emoji="🎞"
+            title="④ 32장 일괄 애니메이션"
+            desc="Wan/Kling I2V로 32 MP4 → 카카오 규격 GIF (360x360, 24fps, 1초) ZIP 자동."
+            href="/animate-batch"
           />
-          <FeatureCard
-            emoji="💰"
-            title="수익화 허브"
-            desc={`${PLATFORMS.length}개 플랫폼 사양·수수료·심사기간을 한 화면에. 신청 딥링크로 바로 이동.`}
-            href="/marketplace"
-          />
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-warning bg-warning/10 p-6">
+        <div className="grid gap-4 md:grid-cols-2 md:items-center">
+          <div>
+            <h2 className="text-2xl font-bold">🚨 거절됐다면? 회복 코치</h2>
+            <p className="mt-2 text-base-content/80">
+              카카오에서 거절 메일 받으셨나요? 거절 사유를 붙여넣고 32장을 업로드하면,
+              차원별로 무엇이 문제였는지 분석하고 슬롯별 수정 프롬프트를 자동으로 만들어줍니다.
+            </p>
+            <p className="mt-2 text-sm text-base-content/70">
+              "다시 만들기"가 아니라 "고쳐서 다시 내기" — 비용·시간 1/10.
+            </p>
+          </div>
+          <div className="text-center">
+            <Link href="/coach" className="btn btn-warning btn-lg">
+              거절 회복 시작 →
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -198,14 +228,21 @@ function FeatureCard({
   title,
   desc,
   href,
+  highlight,
 }: {
   emoji: string;
   title: string;
   desc: string;
   href: string;
+  highlight?: boolean;
 }) {
   return (
-    <Link href={href} className="card border border-base-300 bg-base-100 transition hover:shadow-lg">
+    <Link
+      href={href}
+      className={`card border bg-base-100 transition hover:shadow-lg ${
+        highlight ? "border-warning ring-2 ring-warning/40" : "border-base-300"
+      }`}
+    >
       <div className="card-body">
         <div className="text-4xl">{emoji}</div>
         <h3 className="card-title text-lg">{title}</h3>

@@ -12,6 +12,13 @@ export function NavBar() {
           <span className="text-vm-grad">VibeMoji</span>
         </Link>
         <nav className="hidden items-center gap-1 md:flex">
+          <Link
+            href="/coach"
+            className="btn btn-warning btn-sm"
+            title="카카오 합격 사전 감사 + 거절 회복"
+          >
+            🧐 합격 코치
+          </Link>
           <Link href="/generate" className="btn btn-ghost btn-sm">
             AI 생성
           </Link>
@@ -64,6 +71,9 @@ export function NavBar() {
         <AuthStatus />
       </div>
       <div className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4 py-2 md:hidden">
+        <Link href="/coach" className="btn btn-warning btn-xs flex-1">
+          🧐 코치
+        </Link>
         <Link href="/generate" className="btn btn-ghost btn-xs flex-1">
           AI 생성
         </Link>
