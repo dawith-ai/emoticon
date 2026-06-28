@@ -1,6 +1,14 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { PLATFORMS, CATEGORY_META, ALL_CATEGORIES } from "@/lib/platforms";
 import { WaitlistForm } from "@/components/WaitlistForm";
+
+export const metadata: Metadata = {
+  title: "카카오 이모티콘 합격까지 데려가는 AI 코치",
+  description:
+    "32장 만드는 건 시작이에요. 출시 전 자동 감사로 약점을 찾고 거절 사유를 분석해 수정안까지 만들어요. 카카오·OGQ·라인·Etsy 25개 플랫폼 자동 변환.",
+  alternates: { canonical: "/" },
+};
 
 export default function HomePage() {
   return (

@@ -68,6 +68,7 @@ export function WaitlistForm() {
             type="email"
             required
             placeholder="you@example.com"
+            aria-label="이메일 주소"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="input input-bordered w-full"
@@ -75,6 +76,7 @@ export function WaitlistForm() {
           <select
             value={interest}
             onChange={(e) => setInterest(e.target.value as typeof interest)}
+            aria-label="관심 분야 선택"
             className="select select-bordered"
           >
             <option value="creator">이모티콘 작가 도전</option>
