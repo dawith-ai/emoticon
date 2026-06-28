@@ -583,11 +583,11 @@ export default function EditorPage() {
           <span className="badge badge-primary badge-outline">
             {totalProgress} / 32
           </span>
-          <button onClick={undo} className="btn btn-ghost btn-sm" disabled={!history.current.canUndo()}>
-            ↶
+          <button onClick={undo} className="btn btn-ghost btn-sm" disabled={!history.current.canUndo()} aria-label="실행 취소">
+            <span aria-hidden="true">↶</span>
           </button>
-          <button onClick={redo} className="btn btn-ghost btn-sm" disabled={!history.current.canRedo()}>
-            ↷
+          <button onClick={redo} className="btn btn-ghost btn-sm" disabled={!history.current.canRedo()} aria-label="다시 실행">
+            <span aria-hidden="true">↷</span>
           </button>
           <button
             onClick={() => setOutlineOpen(true)}
@@ -698,8 +698,8 @@ export default function EditorPage() {
             <ToolButton id="text" current={tool} onClick={setTool} emoji="🅰️" label="텍스트" />
           </div>
           <div className="divider my-1"></div>
-          <button onClick={surroundingErase} className="btn btn-ghost btn-xs" title="가장자리 자동 투명화">
-            🪄
+          <button onClick={surroundingErase} className="btn btn-ghost btn-xs" title="가장자리 자동 투명화" aria-label="가장자리 자동 투명화">
+            <span aria-hidden="true">🪄</span>
           </button>
           <button
             onClick={toggleTimelapse}
@@ -707,8 +707,9 @@ export default function EditorPage() {
               recordingTimelapse ? "btn-error" : "btn-ghost"
             }`}
             title="타임랩스 녹화"
+            aria-label="타임랩스 녹화"
           >
-            🎬
+            <span aria-hidden="true">🎬</span>
           </button>
         </aside>
 
@@ -1008,8 +1009,9 @@ function ToolButton({
       onClick={() => onClick(id)}
       className={`btn btn-sm ${current === id ? "btn-primary" : "btn-ghost"}`}
       title={label}
+      aria-label={label}
     >
-      <span className="text-base">{emoji}</span>
+      <span className="text-base" aria-hidden="true">{emoji}</span>
       <span className="ml-1 hidden text-xs lg:inline">{label}</span>
     </button>
   );

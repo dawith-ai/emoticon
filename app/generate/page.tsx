@@ -665,7 +665,7 @@ export default function GeneratePage() {
               {seed ? (
                 <img
                   src={seed.url}
-                  alt="seed"
+                  alt="생성 기준이 되는 시드 캐릭터 이미지"
                   className="h-64 w-64 rounded-2xl bg-white object-contain shadow-lg"
                 />
               ) : busy?.phase === "seed" ? (

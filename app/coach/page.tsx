@@ -580,7 +580,7 @@ export default function CoachPage() {
               {seed.url ? (
                 <img
                   src={seed.url}
-                  alt="seed"
+                  alt="업로드한 시드 캐릭터 이미지"
                   className="h-32 w-32 object-contain"
                 />
               ) : (
