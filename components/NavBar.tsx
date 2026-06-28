@@ -7,11 +7,11 @@ export function NavBar() {
   return (
     <header className="sticky top-0 z-30 border-b border-base-300 bg-base-100/80 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-        <Link href="/" className="flex items-center gap-2 text-xl font-bold">
-          <span className="text-2xl">🎨</span>
+        <Link href="/" className="flex items-center gap-2 text-xl font-bold" aria-label="VibeMoji 홈">
+          <span className="text-2xl" aria-hidden="true">🎨</span>
           <span className="text-vm-grad">VibeMoji</span>
         </Link>
-        <nav className="hidden items-center gap-1 md:flex">
+        <nav className="hidden items-center gap-1 md:flex" aria-label="주요 메뉴">
           <Link
             href="/coach"
             className="btn btn-warning btn-sm"
@@ -39,11 +39,12 @@ export function NavBar() {
             수동 에디터
           </Link>
           <div className="dropdown dropdown-end">
-            <div tabIndex={0} role="button" className="btn btn-ghost btn-sm">
+            <div tabIndex={0} role="button" className="btn btn-ghost btn-sm" aria-haspopup="true" aria-label="도구함 메뉴 열기">
               도구함 ▾
             </div>
             <ul
               tabIndex={0}
+              aria-label="도구함"
               className="menu dropdown-content z-40 mt-1 w-56 rounded-box border border-base-300 bg-base-100 p-2 shadow"
             >
               <li>
@@ -71,13 +72,14 @@ export function NavBar() {
             href="/settings"
             className="btn btn-ghost btn-sm"
             title="내 Gemini 키 등록 (BYOK)"
+            aria-label="설정 — Gemini 키 등록"
           >
-            ⚙️
+            <span aria-hidden="true">⚙️</span>
           </Link>
         </nav>
         <AuthStatus />
       </div>
-      <div className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4 py-2 md:hidden">
+      <nav className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4 py-2 md:hidden" aria-label="모바일 메뉴">
         <Link href="/coach" className="btn btn-warning btn-xs flex-1">
           🧐 코치
         </Link>
@@ -99,7 +101,7 @@ export function NavBar() {
         <Link href="/marketplace" className="btn btn-ghost btn-xs flex-1">
           수익화
         </Link>
-      </div>
+      </nav>
     </header>
   );
 }

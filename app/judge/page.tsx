@@ -206,7 +206,7 @@ export default function JudgePage() {
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={seedUrl}
-                alt="seed"
+                alt="평가 기준 시드 참고 이미지"
                 className="mt-3 w-32 h-32 object-cover rounded border"
               />
             )}
